@@ -1,2 +1,3 @@
-# photobot
-simple bot for photo frames
+## photobot
+
+Simple chatbot for photo frames

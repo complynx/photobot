@@ -1,0 +1,13 @@
+telegram:
+  token: "YOUR_TOKEN"
+
+server:
+  base: "https://complynx.net/photobot"
+  port: 8080
+
+logging:
+  level: "INFO"
+
+photo_tasker:
+  cpu_threads: 8
+

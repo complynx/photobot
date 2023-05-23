@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css?family=Open+Sans');
+
+body {
+  margin: 0;
+  background-color:var(--tg-theme-bg-color);
+  height: 100%;
+  width: 100%;
+}
+
+.help{
+  padding: .5em 2em;
+  font-family: "Open Sans", sans-serif;
+  pointer-events: none;
+  color: var(--tg-theme-text-color);
+  position: fixed;
+  z-index: 2;
+}
+.photo .ancor{
+  position: fixed;
+}
+.photo img{
+  position: absolute;
+}
+.photo{
+  background-color: var(--tg-theme-bg-color);
+  position: fixed;
+  z-index: 0;
+  width: 100vw;
+  height: 100vh;
+}
+.overlay{
+  pointer-events: none;
+  position: fixed;
+  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('frame.png');
+  background-size: 90vmin 90vmin;
+  background-position: center;
+  background-repeat: no-repeat;
+}
