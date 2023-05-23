@@ -25,8 +25,17 @@ jobs:
           push: true
           tags: complynx/${{ github.event.repository.name }}:latest
 
+      - name: Check if we can dispatch the event
+        id: check_token
+        run: |
+          if [[ -z "${{ secrets.SERVER_REPO_TOKEN }}" ]]; then
+            echo "::set-output name=dispatch::false"
+          else
+            echo "::set-output name=dispatch::true"
+          fi
+
       - name: Dispatch event to server
-        if: ${{ secrets.SERVER_REPO_TOKEN }} != ''
+        if: steps.check_token.outputs.dispatch == 'true'
         uses: peter-evans/repository-dispatch@v1
         with:
           token: ${{ secrets.SERVER_REPO_TOKEN }}
