@@ -3,3 +3,4 @@ venv/
 photobot.egg-info
 __pycache__
 photos/
+config/config.yaml

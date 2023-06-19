@@ -36,10 +36,9 @@ class ModelNotFoundException(Exception):
     pass
 
 def init_photo_tasker(cfg: Config):
-    global main_executor, files_path
+    global main_executor
     main_executor = ThreadPoolExecutor(max_workers=cfg.photo.cpu_threads, thread_name_prefix="photo_tasker")
 
-    files_path = cfg.photo.storage_path
     if not os.path.exists(files_path):
         os.makedirs(files_path)
     for file_name in os.listdir(files_path):

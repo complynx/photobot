@@ -16,26 +16,22 @@ from telegram.ext import (
 )
 import logging
 from .photo_task import get_by_user, PhotoTask
+from .config import Config
 
 logger = logging.getLogger(__name__)
 
-PHOTO, CROPPER, UPSCALE, FINISH = range(4)
+PHOTO, CROPPER = range(2)
 
-web_app_base = ""
-
-async def avatar_error(update: Update, context: CallbackContext):
-    reply_markup = ReplyKeyboardRemove()
-    try:
-        get_by_user(update.effective_user.id).delete()
-    except KeyError:
-        pass
-    except Exception as e:
-        logger.error("Exception in avatar_error: %s", e, exc_info=1)
-    await update.message.reply_text(
-        "Ошибка обработки фото, попробуйте ещё раз.\n/avatar",
-        reply_markup=reply_markup
-    )
-    return ConversationHandler.END
+def full_link(app: "TGApplication", link: str) -> str:
+    link = f"{app.config.server.base}{link}"
+    match = re.match(r"http://localhost(:(\d+))?/", link)
+    if match:
+        port = match.group(2)
+        if port is None:
+            port = "80"
+        # Replace the localhost part with your custom URL and port
+        link = re.sub(r"http://localhost(:\d+)?/", f"https://complynx.net/testbot/{port}/", link)
+    return link
 
 async def start(update: Update, context: CallbackContext):
     """Send a welcome message when the /start command is issued."""
@@ -46,48 +42,57 @@ async def start(update: Update, context: CallbackContext):
         "/avatar"
     )
 
-async def avatar(update: Update, context: CallbackContext):
+async def avatar_cmd(update: Update, context: CallbackContext):
     """Handle the /avatar command, requesting a photo."""
     logger.info(f"Received /avatar command from {update.effective_user}")
-    _ = PhotoTask(update.effective_chat, update.effective_user)
-    markup = ReplyKeyboardMarkup([["Отмена"]], resize_keyboard=True, one_time_keyboard=True)
+    await avatar_cancel_inflow(update, context)
+    buttons = [["Отмена"]]
     await update.message.reply_text(
-        "📸 Пришли своё лучшее фото и начнём.\n\nP.S. Если в процессе покажется, что я "+
-        "уснул, то просто разбуди меня, снова выбрав команду\n/avatar",
-        reply_markup=markup
+        "📸 Отправь мне своё лучшее фото.\n\nP.S. Если в процессе покажется, что я "+
+        "уснула, то просто разбуди меня, снова выбрав команду\n/avatar",
+        reply_markup = ReplyKeyboardMarkup(
+            buttons,
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
     )
     return PHOTO
 
-async def reavatar(update: Update, context: CallbackContext):
-    logger.info(f"Avatar submission for {update.effective_user} canceled")
-    try:
-        get_by_user(update.effective_user.id).delete()
-    except KeyError:
-        pass
-    except Exception as e:
-        logger.error("Exception in cancel: %s", e, exc_info=1)
-    await update.message.reply_text("Предыдущая обработка отменена.")
-    return await avatar(update, context)
+async def avatar_received_image(update: Update, context: CallbackContext):
+    """Handle the photo submission as photo"""
+    logger.info(f"Received avatar photo from {update.effective_user}")
 
-async def photo_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
-    try:
-        task = get_by_user(update.effective_user.id)
-    except KeyError:
-        return await avatar_error(update, context)
-    except Exception as e:
-        logger.error("Exception in photo_stage2: %s", e, exc_info=1)
-        return await avatar_error(update, context)
+    photo_file = await update.message.photo[-1].get_file()
+    file_name = f"{photo_file.file_id}.jpg"
+    file_path = os.path.join(tempfile.gettempdir(), file_name)
+    
+    await photo_file.download_to_drive(file_path)
+    return await avatar_received_stage2(update, context, file_path, "jpg")
+
+async def avatar_received_document_image(update: Update, context: CallbackContext):
+    """Handle the photo submission as document"""
+    logger.info(f"Received avatar document from {update.effective_user}")
+
+    document = update.message.document
+
+    # Download the document
+    document_file = await document.get_file()
+    file_ext = mimetypes.guess_extension(document.mime_type)
+    file_path = os.path.join(tempfile.gettempdir(), f"{document.file_id}.{file_ext}")
+    await document_file.download_to_drive(file_path)
+    return await avatar_received_stage2(update, context, file_path, file_ext)
+
+async def avatar_received_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
+    await avatar_cancel_inner(update)
+    task = PhotoTask(update.effective_chat, update.effective_user)
     task.add_file(file_path, file_ext)
-
-    link = f"{web_app_base}/fit_frame?id={task.id.hex}"
-    match = re.match(r"http://localhost:(\d+)/", link)
-    if match:
-        port = match.group(1)
-        # Replace the localhost part with your custom URL and port
-        link = re.sub(r"http://localhost:\d+/", f"https://complynx.net/testbot/{port}/", link)
-
     buttons = [
-        [KeyboardButton("Выбрать расположение", web_app=WebAppInfo(link))],
+        [
+            KeyboardButton(
+                "Выбрать расположение",
+                web_app=WebAppInfo(full_link(context.application, f"/fit_frame?id={task.id.hex}"))
+            )
+        ],
         ["Так сойдёт"],["Отмена"]
     ]
 
@@ -97,13 +102,14 @@ async def photo_stage2(update: Update, context: CallbackContext, file_path:str, 
         resize_keyboard=True,
         one_time_keyboard=True
     )
+    logger.debug(f"url: " + full_link(context.application, f"/fit_frame?id={task.id.hex}"))
     await update.message.reply_text(
         "Фото загружено. Выберите как оно будет располагаться внутри рамки.",
         reply_markup=markup
     )
     return CROPPER
 
-async def autocrop(update: Update, context: CallbackContext):
+async def avatar_crop_auto(update: Update, context: CallbackContext):
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -118,25 +124,9 @@ async def autocrop(update: Update, context: CallbackContext):
     except Exception as e:
         logger.error("Exception in autocrop: %s", e, exc_info=1)
         return await avatar_error(update, context)
-    return await cropped_st2(task, update, context)
+    return await avatar_crop_stage2(task, update, context)
 
-async def cropped_st2(task: PhotoTask, update: Update, context: CallbackContext):
-    try:
-        await task.finalize_avatar()
-        await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
-        await update.message.reply_text(
-            "🔁 Если хочешь обработать другое фото, то для этого снова используй команду\n"+
-            "/avatar",
-            reply_markup=ReplyKeyboardRemove()
-        )
-    except Exception as e:
-        logger.error("Exception in cropped_st2: %s", e, exc_info=1)
-        return await avatar_error(update, context)
-    
-    task.delete()
-    return ConversationHandler.END
-
-async def image_crop_matrix(update: Update, context):
+async def avatar_crop_matrix(update: Update, context):
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -165,82 +155,127 @@ async def image_crop_matrix(update: Update, context):
     except Exception as e:
         logger.error("Exception in image_crop_matrix: %s", e, exc_info=1)
         return await avatar_error(update, context)
-    return await cropped_st2(task, update, context)
+    return await avatar_crop_stage2(task, update, context)
 
-async def photo(update: Update, context: CallbackContext):
-    """Handle the photo submission as photo"""
-    logger.info(f"Received avatar photo from {update.effective_user}")
-
-    photo_file = await update.message.photo[-1].get_file()
-    file_name = f"{photo_file.file_id}.jpg"
-    file_path = os.path.join(tempfile.gettempdir(), file_name)
+async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackContext):
+    try:
+        await update.message.reply_text(
+            "🪐 Уже совсем скоро твоё чудесное фото станет ещё и космическим! Процесс запущен...",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await task.finalize_avatar()
+        await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
+        await update.message.reply_text(
+            "🔁 Если хочешь другое фото, то для этого снова используй команду\n"+
+            "/avatar\n\n🛸 Всё готово! До встречи на ZNS! 🐋",
+            reply_markup=ReplyKeyboardRemove()
+        )
+    except Exception as e:
+        logger.error("Exception in cropped_st2: %s", e, exc_info=1)
+        return await avatar_error(update, context)
     
-    await photo_file.download_to_drive(file_path)
-    return await photo_stage2(update, context, file_path, "jpg")
+    task.delete()
+    return ConversationHandler.END
 
-async def photo_doc(update: Update, context: CallbackContext):
-    """Handle the photo submission as document"""
-    logger.info(f"Received avatar document from {update.effective_user}")
-
-    document = update.message.document
-
-    # Download the document
-    document_file = await document.get_file()
-    file_ext = mimetypes.guess_extension(document.mime_type)
-    file_path = os.path.join(tempfile.gettempdir(), f"{document.file_id}.{file_ext}")
-    await document_file.download_to_drive(file_path)
-    return await photo_stage2(update, context, file_path, file_ext)
-
-async def cancel(update: Update, context: CallbackContext):
-    """Handle the cancel command during the avatar submission."""
-    logger.info(f"Avatar submission for {update.effective_user} canceled")
+async def avatar_cancel_inner(update: Update):
     try:
         get_by_user(update.effective_user.id).delete()
+        return True
     except KeyError:
         pass
     except Exception as e:
         logger.error("Exception in cancel: %s", e, exc_info=1)
-    reply_markup = ReplyKeyboardRemove()
-    await update.message.reply_text("Обработка фотографии отменена.", reply_markup=reply_markup)
+    return False
+
+async def avatar_cancel_inflow(update: Update, context: CallbackContext):
+    """Handle the cancel command during the avatar submission."""
+    logger.info(f"Avatar submission for {update.effective_user} canceled")
+    if await avatar_cancel_inner(update):
+        await update.message.reply_text(
+            "Уже активированная обработка фотографии отменена.",
+            reply_markup=ReplyKeyboardRemove()
+        )
     return ConversationHandler.END
 
-# async def log_msg(update: Update, context: CallbackContext):
-#     logger.info(f"got message from user {update.effective_user}: {update.message}")
+async def avatar_cancel_command(update: Update, context: CallbackContext):
+    """Handle the cancel command during the avatar submission."""
+    logger.info(f"Avatar submission for {update.effective_user} canceled")
+    await avatar_cancel_inner(update)
+    await update.message.reply_text(
+        "Oбработка фотографии отменена.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
+
+async def avatar_error(update: Update, context: CallbackContext):
+    await avatar_cancel_inner(update)
+    await update.message.reply_text(
+        "Ошибка обработки фото, попробуйте ещё раз.\n/avatar",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
+
+async def avatar_timeout(update: Update, context: CallbackContext):
+    await avatar_cancel_inner(update)
+    await update.message.reply_text(
+        "Обработка фото отменена, так как долго не было активных действий от пользователя.\n"+
+        "Запустить новую можно по команде /avatar",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
+
+async def log_msg(update: Update, context: CallbackContext):
+    logger.info(f"got unparsed update {update}")
 
 async def error_handler(update, context):
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
+class TGApplication(Application):
+    base_app = None
+    config: Config
+
+    def __init__(self, base_app, base_config: Config, **kwargs):
+        super().__init__(**kwargs)
+        self.base_app = base_app
+        self.config = base_config
 
 @asynccontextmanager
-async def create_telegram_bot(config) -> Application:
+async def create_telegram_bot(config: Config, app) -> TGApplication:
     global web_app_base
-    application = ApplicationBuilder().token(token=config.telegram_token).build()
+    application = ApplicationBuilder().application_class(TGApplication, kwargs={
+        "base_app": app,
+        "base_config": config
+    }).token(token=config.telegram.token.get_secret_value()).build()
 
-    web_app_base = config.server_base
     # Conversation handler for /аватар command
-    ava_handler = ConversationHandler(
-        entry_points=[CommandHandler("avatar", avatar)],
+    avatar_conversation = ConversationHandler(
+        entry_points=[
+            CommandHandler("avatar", avatar_cmd),
+        ],
         states={
             PHOTO: [
-                MessageHandler(filters.PHOTO, photo),
-                MessageHandler(filters.Document.IMAGE, photo_doc)
+                MessageHandler(filters.PHOTO, avatar_received_image),
+                MessageHandler(filters.Document.IMAGE, avatar_received_document_image),
             ],
             CROPPER: [
-                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, image_crop_matrix),
-                MessageHandler(filters.Regex(re.compile("^(Так сойдёт)$", re.I)), autocrop),
+                MessageHandler(filters.StatusUpdate.WEB_APP_DATA, avatar_crop_matrix),
+                MessageHandler(filters.Regex(re.compile("^(Так сойдёт)$", re.I)), avatar_crop_auto),
             ],
-            FINISH: [MessageHandler(filters.Regex(".*"), cancel)],
+            ConversationHandler.TIMEOUT: [
+                MessageHandler(filters.ALL, avatar_timeout)
+            ],
         },
         fallbacks=[
-            CommandHandler("cancel", cancel),
-            CommandHandler("avatar", reavatar),
-            MessageHandler(filters.Regex(re.compile("^(Cancel|Отмена)$", re.I|re.U)), cancel)
+            CommandHandler("cancel", avatar_cancel_command),
+            CommandHandler("avatar", avatar_cancel_command),
+            MessageHandler(filters.Regex(re.compile("^(Cancel|Отмена)$", re.I|re.U)), avatar_cancel_command)
         ],
+        conversation_timeout=config.photo.conversation_timeout
     )
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(ava_handler)
-    # application.add_handler(MessageHandler(filters.TEXT, log_msg))
+    application.add_handler(avatar_conversation)
+    application.add_handler(MessageHandler(filters.ALL, log_msg))
     application.add_error_handler(error_handler)
 
     try:
@@ -248,8 +283,10 @@ async def create_telegram_bot(config) -> Application:
         await application.start()
         await application.updater.start_polling()
 
+        app.bot = application
         yield application
     finally:
+        app.bot = None
         await application.stop()
         await application.updater.stop()
         await application.shutdown()
