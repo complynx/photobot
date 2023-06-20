@@ -4,16 +4,20 @@ from .config import Config
 from .telegram import create_telegram_bot
 from .server import create_server
 from .photo_task import init_photo_tasker
-
+from .cached_localization import Localization
+from fluent.runtime import FluentResourceLoader
 
 logger = logging.getLogger(__name__)
 
 class App(object):
     bot = None
     server = None
+    localization = None
 
 async def main(cfg: Config):
     app = App()
+    loader = FluentResourceLoader(cfg.localization.path)
+    app.localization = Localization(loader, cfg.localization.file, cfg.localization.fallbacks)
     init_photo_tasker(cfg)
     await create_server(cfg, app)
     try:

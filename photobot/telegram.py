@@ -36,20 +36,21 @@ def full_link(app: "TGApplication", link: str) -> str:
 async def start(update: Update, context: CallbackContext):
     """Send a welcome message when the /start command is issued."""
     logger.info(f"start called: {update.effective_user}")
-    await context.bot.set_my_commands([("/avatar", "Создать аватар.")])
-    await update.message.reply_markdown(
-        "Приветствую. Я — простой бот, который поможет поместить аватарку в рамку. Для этого выбери команду\n"+
-        "/avatar"
-    )
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    la = lambda s,a: context.application.base_app.localization(s, a, locale=update.effective_user.language_code)
+
+    await context.bot.set_my_commands([("/avatar", l("create-userpic"))])
+    await update.message.reply_html(l("start-message"))
 
 async def avatar_cmd(update: Update, context: CallbackContext):
     """Handle the /avatar command, requesting a photo."""
     logger.info(f"Received /avatar command from {update.effective_user}")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
     await avatar_cancel_inflow(update, context)
-    buttons = [["Отмена"]]
-    await update.message.reply_text(
-        "📸 Отправь мне своё лучшее фото.\n\nP.S. Если в процессе покажется, что я "+
-        "уснула, то просто разбуди меня, снова выбрав команду\n/avatar",
+    buttons = [[l("cancel-command")]]
+    await update.message.reply_html(
+        l("photo-prompt"),
         reply_markup = ReplyKeyboardMarkup(
             buttons,
             resize_keyboard=True,
@@ -84,16 +85,18 @@ async def avatar_received_document_image(update: Update, context: CallbackContex
 
 async def avatar_received_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
     await avatar_cancel_inner(update)
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
     task = PhotoTask(update.effective_chat, update.effective_user)
     task.add_file(file_path, file_ext)
     buttons = [
         [
             KeyboardButton(
-                "Выбрать расположение",
-                web_app=WebAppInfo(full_link(context.application, f"/fit_frame?id={task.id.hex}"))
+                l("select-position-command"),
+                web_app=WebAppInfo(full_link(context.application, f"/fit_frame?id={task.id.hex}&locale={update.effective_user.language_code}"))
             )
         ],
-        ["Так сойдёт"],["Отмена"]
+        [l("autocrop-command")],[l("cancel-command")]
     ]
 
 
@@ -102,14 +105,14 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
         resize_keyboard=True,
         one_time_keyboard=True
     )
-    logger.debug(f"url: " + full_link(context.application, f"/fit_frame?id={task.id.hex}"))
     await update.message.reply_text(
-        "Фото загружено. Выберите как оно будет располагаться внутри рамки.",
+        l("select-position-prompt"),
         reply_markup=markup
     )
     return CROPPER
 
 async def avatar_crop_auto(update: Update, context: CallbackContext):
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -117,7 +120,7 @@ async def avatar_crop_auto(update: Update, context: CallbackContext):
     except Exception as e:
         logger.error("Exception in autocrop: %s", e, exc_info=1)
         return await avatar_error(update, context)
-    await update.message.reply_text(f"Аватар обрабатывается... 🔄", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(l("processing-photo"), reply_markup=ReplyKeyboardRemove())
     
     try:
         await task.resize_avatar()
@@ -127,6 +130,7 @@ async def avatar_crop_auto(update: Update, context: CallbackContext):
     return await avatar_crop_stage2(task, update, context)
 
 async def avatar_crop_matrix(update: Update, context):
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -148,7 +152,7 @@ async def avatar_crop_matrix(update: Update, context):
         return await avatar_error(update, context)
     if task.id.hex != id_str:
         return await avatar_error(update, context)
-    await update.message.reply_text(f"Аватар обрабатывается...", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(l("processing-photo"), reply_markup=ReplyKeyboardRemove())
     
     try:
         await task.transform_avatar(a,b,c,d,e,f)
@@ -158,16 +162,12 @@ async def avatar_crop_matrix(update: Update, context):
     return await avatar_crop_stage2(task, update, context)
 
 async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackContext):
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     try:
-        await update.message.reply_text(
-            "🪐 Уже совсем скоро твоё чудесное фото станет ещё и космическим! Процесс запущен...",
-            reply_markup=ReplyKeyboardRemove()
-        )
         await task.finalize_avatar()
         await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
         await update.message.reply_text(
-            "🔁 Если хочешь другое фото, то для этого снова используй команду\n"+
-            "/avatar\n\n🛸 Всё готово! До встречи на ZNS! 🐋",
+            l("final-message"),
             reply_markup=ReplyKeyboardRemove()
         )
     except Exception as e:
@@ -190,9 +190,10 @@ async def avatar_cancel_inner(update: Update):
 async def avatar_cancel_inflow(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     if await avatar_cancel_inner(update):
         await update.message.reply_text(
-            "Уже активированная обработка фотографии отменена.",
+            l("processing-cancelled"),
             reply_markup=ReplyKeyboardRemove()
         )
     return ConversationHandler.END
@@ -200,26 +201,51 @@ async def avatar_cancel_inflow(update: Update, context: CallbackContext):
 async def avatar_cancel_command(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     await avatar_cancel_inner(update)
     await update.message.reply_text(
-        "Oбработка фотографии отменена.",
+        l("processing-cancelled-message"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
 
+async def avatar_autocrop_and_fallback(update: Update, context: CallbackContext):
+    """Handle text messages from buttons using locale in case of autocrop."""
+    logger.info(f"avatar_autocrop_and_fallback called: {update.effective_user}")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
+    cmd = update.message.text.lower().strip()
+    autocrop_str = l("autocrop-command").lower().strip()
+    if cmd == autocrop_str:
+        return await avatar_crop_auto(update, context)
+    return await avatar_fallback(update, context)
+
+async def avatar_fallback(update: Update, context: CallbackContext):
+    """Handle text messages from buttons using locale."""
+    logger.info(f"avatar_fallback called: {update.effective_user}")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
+    cmd = update.message.text.lower().strip()
+    cancel_str = l("cancel-command").lower().strip()
+    if cmd == cancel_str or cmd == "cancel":
+        return await avatar_cancel_command(update, context)
+    
+    await update.message.reply_html(l("unknown-input"))
+
 async def avatar_error(update: Update, context: CallbackContext):
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     await avatar_cancel_inner(update)
     await update.message.reply_text(
-        "Ошибка обработки фото, попробуйте ещё раз.\n/avatar",
+        l("processing-error"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
 
 async def avatar_timeout(update: Update, context: CallbackContext):
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     await avatar_cancel_inner(update)
     await update.message.reply_text(
-        "Обработка фото отменена, так как долго не было активных действий от пользователя.\n"+
-        "Запустить новую можно по команде /avatar",
+        l("conversation-timeout"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
@@ -259,7 +285,7 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
             ],
             CROPPER: [
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, avatar_crop_matrix),
-                MessageHandler(filters.Regex(re.compile("^(Так сойдёт)$", re.I)), avatar_crop_auto),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, avatar_autocrop_and_fallback),
             ],
             ConversationHandler.TIMEOUT: [
                 MessageHandler(filters.ALL, avatar_timeout)
@@ -268,7 +294,7 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
         fallbacks=[
             CommandHandler("cancel", avatar_cancel_command),
             CommandHandler("avatar", avatar_cancel_command),
-            MessageHandler(filters.Regex(re.compile("^(Cancel|Отмена)$", re.I|re.U)), avatar_cancel_command)
+            MessageHandler(filters.TEXT, avatar_fallback)
         ],
         conversation_timeout=config.photo.conversation_timeout
     )

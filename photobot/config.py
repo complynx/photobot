@@ -18,11 +18,17 @@ class PhotoSettings(BaseSettings):
     storage_path: str = Field("photos")
     conversation_timeout: timedelta = Field(timedelta(hours=2))
 
+class LocalizationSettings(BaseSettings):
+    path: str = Field("i18n/{locale}", env="LOCALIZATION_PATH")
+    fallbacks: list[str] = Field(["en-US", "en"])
+    file: str = Field("bot.ftl")
+
 class Config(BaseSettings):
     telegram: TelegramSettings
     logging: LoggingSettings
     server: ServerSettings
     photo: PhotoSettings
+    localization: LocalizationSettings
 
     def __init__(self, filename:str="config/config.yaml"):
         # Load a YAML configuration file

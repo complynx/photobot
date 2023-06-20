@@ -10,8 +10,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 class FitFrameHandler(tornado.web.RequestHandler):
+    def initialize(self, app):
+        self.app = app
+
     async def get(self):
         id_str = self.get_query_argument("id", default="")
+        locale_str = self.get_query_argument("locale", default="en")
+        l = lambda s: self.app.localization(s, locale=locale_str)
 
         try:
             task = get_by_uuid(id_str)
@@ -20,6 +25,10 @@ class FitFrameHandler(tornado.web.RequestHandler):
                 task=task,
                 id=id_str,
                 real_frame_size=real_frame_size,
+                help_desktop=l("frame-mover-help-desktop"),
+                help_mobile=l("frame-mover-help-mobile"),
+                frame_mover_help_unified=l("frame-mover-help-unified"),
+                finish_button_text=l("frame-mover-finish-button-text"),
             )
         except (KeyError, ValueError):
             raise tornado.web.HTTPError(404)
@@ -50,7 +59,7 @@ class PhotoHandler(tornado.web.StaticFileHandler):
 async def create_server(config: Config, base_app):
     tornado.platform.asyncio.AsyncIOMainLoop().install()
     app = tornado.web.Application([
-        (r"/fit_frame", FitFrameHandler),
+        (r"/fit_frame", FitFrameHandler, {"app": base_app}),
         (r"/photos/(.*)", PhotoHandler),
         (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static/"}),
     ], template_path="templates/")

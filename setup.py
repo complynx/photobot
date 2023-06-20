@@ -6,6 +6,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "python-telegram-bot[job-queue]==20.3",
+        "fluent.runtime==0.4",
         "tornado==6.3",
         "pyyaml==6.0",
         "pillow==9.5",

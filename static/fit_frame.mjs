@@ -20,10 +20,9 @@ console.log(photo, frame, cancel_btn, submit_btn);
 
 
 if(Telegram.WebApp.platform === "tdesktop") {
-    help_div.innerText = "Фото можно перемещать мышкой, для вращения зажмите кнопку Shift. Для масштабирования используйте прокрутку.";
+    help_div.innerText = help_desktop;
 } else {
-    help_div.innerText = "Фото можно перемещать одним касанием. Двумя — вращать и масштабировать.\n"+
-    "Если вместо перемещения фото сворачивается окно, попробуйте начать с движения вверх.";
+    help_div.innerText = help_mobile;
 }
 
 /**
@@ -318,7 +317,7 @@ screen_size_source.addEventListener('touchstart', onTouchStart, false);
 screen_size_source.addEventListener('touchmove', onTouchMove, false);
 screen_size_source.addEventListener('touchend', onTouchEnd, false);
 
-Telegram.WebApp.MainButton.setText("Готово");
+Telegram.WebApp.MainButton.setText(finish_button_text);
 Telegram.WebApp.MainButton.show();
 Telegram.WebApp.MainButton.onClick(()=>{
     const [a, c, e] = transformationMatrix[0];
