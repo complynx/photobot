@@ -23,12 +23,18 @@ class LocalizationSettings(BaseSettings):
     fallbacks: list[str] = Field(["en-US", "en"])
     file: str = Field("bot.ftl")
 
+class UsersDB(BaseSettings):
+    address: str = Field("", env="BOT_MONGODB_ADDRESS")
+    database: str = Field("", env="BOT_MONGODB_DATABASE")
+    collection: str = Field("bot_users", env="BOT_MONGODB_COLLECTION")
+
 class Config(BaseSettings):
     telegram: TelegramSettings
     logging: LoggingSettings
     server: ServerSettings
     photo: PhotoSettings
     localization: LocalizationSettings
+    users_db: UsersDB
 
     def __init__(self, filename:str="config/config.yaml"):
         # Load a YAML configuration file

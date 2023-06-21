@@ -13,4 +13,12 @@ photo:
   storage_path: "photos"
   conversation_timeout: "2:00:00"
 
-localization: {}
+localization:
+  path: "i18n/{locale}"
+  fallbacks: ["en-US", "en"]
+  file: bot.ftl
+
+users_db:
+  address: mongodb://admin:test@mongo:27017
+  database: bots_db
+  collection: bots_users

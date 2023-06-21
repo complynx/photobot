@@ -1,4 +1,3 @@
-test-str = Test string!
 create-userpic = Create userpic
 start-message =
     Hello. I'm a simple bot that will help you to create a user image with frame. To do it, call the command

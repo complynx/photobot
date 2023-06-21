@@ -17,6 +17,7 @@ from telegram.ext import (
 import logging
 from .photo_task import get_by_user, PhotoTask
 from .config import Config
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,31 @@ async def start(update: Update, context: CallbackContext):
     """Send a welcome message when the /start command is issued."""
     logger.info(f"start called: {update.effective_user}")
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-    la = lambda s,a: context.application.base_app.localization(s, a, locale=update.effective_user.language_code)
+
+    if context.application.base_app.users_collection is not None:
+        try:
+            await context.application.base_app.users_collection.update_one({
+                "user_id": update.effective_user.id,
+                "bot_id": context.bot.id,
+            }, {
+                "$set": {
+                    "username": update.effective_user.username,
+                    "first_name": update.effective_user.first_name,
+                    "last_name": update.effective_user.last_name,
+                    "language_code": update.effective_user.language_code,
+                },
+                "$inc": {
+                    "starts_called": 1,
+                },
+                "$setOnInsert": {
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                    "bot_username": context.bot.username,
+                    "first_seen": datetime.datetime.now(),
+                }
+            }, upsert=True)
+        except Exception as e:
+            logger.error(f"mongodb update error: {e}", exc_info=1)
 
     await context.bot.set_my_commands([("/avatar", l("create-userpic"))])
     await update.message.reply_html(l("start-message"))
@@ -46,6 +71,32 @@ async def avatar_cmd(update: Update, context: CallbackContext):
     """Handle the /avatar command, requesting a photo."""
     logger.info(f"Received /avatar command from {update.effective_user}")
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
+    if context.application.base_app.users_collection is not None:
+        try:
+            await context.application.base_app.users_collection.update_one({
+                "user_id": update.effective_user.id,
+                "bot_id": context.bot.id,
+            }, {
+                "$set": {
+                    "username": update.effective_user.username,
+                    "first_name": update.effective_user.first_name,
+                    "last_name": update.effective_user.last_name,
+                    "language_code": update.effective_user.language_code,
+                    "last_avatar_call": datetime.datetime.now(),
+                },
+                "$inc": {
+                    "avatars_called": 1,
+                },
+                "$setOnInsert": {
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                    "bot_username": context.bot.username,
+                    "first_seen": datetime.datetime.now(),
+                }
+            }, upsert=True)
+        except Exception as e:
+            logger.error(f"mongodb update error: {e}", exc_info=1)
 
     await avatar_cancel_inflow(update, context)
     buttons = [[l("cancel-command")]]
@@ -84,7 +135,7 @@ async def avatar_received_document_image(update: Update, context: CallbackContex
     return await avatar_received_stage2(update, context, file_path, file_ext)
 
 async def avatar_received_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
-    await avatar_cancel_inner(update)
+    await avatar_cancel_inner(update, context)
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
 
     task = PhotoTask(update.effective_chat, update.effective_user)
@@ -170,6 +221,19 @@ async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackC
             l("final-message"),
             reply_markup=ReplyKeyboardRemove()
         )
+
+        if context.application.base_app.users_collection is not None:
+            try:
+                await context.application.base_app.users_collection.update_one({
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                }, {
+                    "$inc": {
+                        "avatars_created": 1,
+                    }
+                })
+            except Exception as e:
+                logger.error(f"mongodb update error: {e}", exc_info=1)
     except Exception as e:
         logger.error("Exception in cropped_st2: %s", e, exc_info=1)
         return await avatar_error(update, context)
@@ -177,9 +241,21 @@ async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackC
     task.delete()
     return ConversationHandler.END
 
-async def avatar_cancel_inner(update: Update):
+async def avatar_cancel_inner(update: Update, context: CallbackContext):
     try:
         get_by_user(update.effective_user.id).delete()
+        if context.application.base_app.users_collection is not None:
+            try:
+                await context.application.base_app.users_collection.update_one({
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                }, {
+                    "$inc": {
+                        "avatars_cancelled": 1,
+                    }
+                })
+            except Exception as e:
+                logger.error(f"mongodb update error: {e}", exc_info=1)
         return True
     except KeyError:
         pass
@@ -191,7 +267,7 @@ async def avatar_cancel_inflow(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-    if await avatar_cancel_inner(update):
+    if await avatar_cancel_inner(update, context):
         await update.message.reply_text(
             l("processing-cancelled"),
             reply_markup=ReplyKeyboardRemove()
@@ -202,7 +278,7 @@ async def avatar_cancel_command(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-    await avatar_cancel_inner(update)
+    await avatar_cancel_inner(update, context)
     await update.message.reply_text(
         l("processing-cancelled-message"),
         reply_markup=ReplyKeyboardRemove()
@@ -234,7 +310,7 @@ async def avatar_fallback(update: Update, context: CallbackContext):
 
 async def avatar_error(update: Update, context: CallbackContext):
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-    await avatar_cancel_inner(update)
+    await avatar_cancel_inner(update, context)
     await update.message.reply_text(
         l("processing-error"),
         reply_markup=ReplyKeyboardRemove()
@@ -243,7 +319,7 @@ async def avatar_error(update: Update, context: CallbackContext):
 
 async def avatar_timeout(update: Update, context: CallbackContext):
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-    await avatar_cancel_inner(update)
+    await avatar_cancel_inner(update, context)
     await update.message.reply_text(
         l("conversation-timeout"),
         reply_markup=ReplyKeyboardRemove()
