@@ -20,6 +20,21 @@ class FitFrameHandler(tornado.web.RequestHandler):
 
         try:
             task = get_by_uuid(id_str)
+
+            if self.app.users_collection is not None:
+                try:
+                    user_agent = self.request.headers.get("User-Agent")
+                    await self.app.users_collection.update_one({
+                        "user_id": task.user.id,
+                        "bot_id": self.app.bot.bot.id,
+                    }, {
+                        "$set": {
+                            "user_agent": user_agent
+                        },
+                    }, upsert=True)
+                except Exception as e:
+                    logger.error(f"mongodb update error: {e}", exc_info=1)
+
             self.render(
                 "fit_frame.html",
                 task=task,
