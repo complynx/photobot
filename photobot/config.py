@@ -17,6 +17,7 @@ class PhotoSettings(BaseSettings):
     cpu_threads: int = Field(8)
     storage_path: str = Field("photos")
     conversation_timeout: timedelta = Field(timedelta(hours=2))
+    admins: list[int] = []
 
 class LocalizationSettings(BaseSettings):
     path: str = Field("i18n/{locale}", env="LOCALIZATION_PATH")

@@ -54,3 +54,16 @@ body {
   background-position: center;
   background-repeat: no-repeat;
 }
+
+.debug-layer {
+  display: none;
+  z-index: 3;
+  position: fixed;
+  width: 100vw;
+  color: #fff;
+  background: #000;
+  opacity: 0.7;
+}
+body.debug .debug-layer {
+  display: block;
+}

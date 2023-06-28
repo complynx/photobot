@@ -110,6 +110,8 @@ def img_transform(img, a, b, c, d, e, f):
 
 
 class PhotoTask(object):
+    debug_code = None
+    
     def __init__(self, chat: Chat, user: User) -> None:
         self.chat = chat
         self.user = user

@@ -332,6 +332,22 @@ async def log_msg(update: Update, context: CallbackContext):
 async def error_handler(update, context):
     logger.error(msg="Exception while handling an update:", exc_info=context.error)
 
+async def avatar_debug(update: Update, context: CallbackContext):
+    conf: Config = context.application.config
+    if update.effective_user.id not in conf.photo.admins:
+        return
+    code = update.message.text
+    logger.info(f"Received avatar_debug code {code} command from {update.effective_user}")
+    try:
+        task = get_by_user(update.effective_user.id)
+    except KeyError:
+        return await avatar_error(update, context)
+    except Exception as e:
+        logger.error("Exception in autocrop: %s", e, exc_info=1)
+        return await avatar_error(update, context)
+    task.debug_code = code
+    await update.message.reply_text("code accepted")
+
 class TGApplication(Application):
     base_app = None
     config: Config
@@ -368,6 +384,7 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
             ],
         },
         fallbacks=[
+            MessageHandler(filters.Regex(re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I|re.U)), avatar_debug),
             CommandHandler("cancel", avatar_cancel_command),
             CommandHandler("avatar", avatar_cancel_command),
             MessageHandler(filters.TEXT, avatar_fallback)
