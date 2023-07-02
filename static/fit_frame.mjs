@@ -6,7 +6,7 @@ const ETransform = [[1,0,0],[0,1,0]];
 let ph, pw;
 let transformationMatrix = ETransform;
 let frameTransformationMatrix = ETransform;
-const frame_size_fraction = .9;
+const frame_size_fraction = 1;
 let W,H, Vmax, Vmin;
 let frame_size, f_top, f_left;
 let help_div = document.querySelector(".help");
