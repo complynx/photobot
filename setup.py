@@ -12,6 +12,6 @@ setup(
         "pillow>=9.5",
         "numpy>=1.24",
         "motor>=3.1",
-        "pydantic>=1.10",
+        "pydantic>=1.10,<2.0",
     ],
 )
