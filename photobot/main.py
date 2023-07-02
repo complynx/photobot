@@ -21,10 +21,10 @@ async def main(cfg: Config):
     loader = FluentResourceLoader(cfg.localization.path)
     app.localization = Localization(loader, cfg.localization.file, cfg.localization.fallbacks)
 
-    if cfg.users_db.address != "" and cfg.users_db.database != "":
+    if cfg.users_db.address != "":
         logger.info(f"db address {cfg.users_db.address}")
-        mongodb = AsyncIOMotorClient(cfg.users_db.address)
-        app.users_collection = mongodb[cfg.users_db.database][cfg.users_db.collection]
+        mongodb = AsyncIOMotorClient(cfg.users_db.address).get_database()
+        app.users_collection = mongodb[cfg.users_db.collection]
 
     init_photo_tasker(cfg)
     await create_server(cfg, app)

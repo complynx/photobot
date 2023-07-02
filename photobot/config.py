@@ -26,7 +26,6 @@ class LocalizationSettings(BaseSettings):
 
 class UsersDB(BaseSettings):
     address: str = Field("", env="BOT_MONGODB_ADDRESS")
-    database: str = Field("", env="BOT_MONGODB_DATABASE")
     collection: str = Field("bot_users", env="BOT_MONGODB_COLLECTION")
 
 class Config(BaseSettings):
