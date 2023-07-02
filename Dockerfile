@@ -17,7 +17,7 @@ COPY . /app
 EXPOSE 80
 
 # Define environment variable
-ENV NAME zns-chatbot
+ENV NAME photobot
 
-# Run python -m zns-chatbot.main when the container launches
-CMD ["sh", "-c", "TELEGRAM_TOKEN=$TELEGRAM_TOKEN python -m zns-chatbot.main"]
+# Run python -m photobot.main when the container launches
+CMD ["sh", "-c", "TELEGRAM_TOKEN=$TELEGRAM_TOKEN python -m photobot.main"]
