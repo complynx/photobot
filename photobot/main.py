@@ -22,6 +22,7 @@ async def main(cfg: Config):
     app.localization = Localization(loader, cfg.localization.file, cfg.localization.fallbacks)
 
     if cfg.users_db.address != "" and cfg.users_db.database != "":
+        logger.info(f"db address {cfg.users_db.address}")
         mongodb = AsyncIOMotorClient(cfg.users_db.address)
         app.users_collection = mongodb[cfg.users_db.database][cfg.users_db.collection]
 
