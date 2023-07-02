@@ -19,6 +19,5 @@ localization:
   file: bot.ftl
 
 users_db:
-  address: mongodb://admin:test@mongo:27017
-  database: bots_db
+  address: mongodb://admin:test@mongo:27017/bots_db
   collection: bots_users
