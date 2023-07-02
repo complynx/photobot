@@ -50,7 +50,7 @@ body {
   width: 100vw;
   height: 100vh;
   background-image: url('frame.png');
-  background-size: 90vmin 90vmin;
+  background-size: 100vmin 100vmin;
   background-position: center;
   background-repeat: no-repeat;
 }
