@@ -55,6 +55,13 @@ body {
   background-repeat: no-repeat;
 }
 
+.open-file {
+  z-index: 3;
+  position: fixed;
+  width: 100vw;
+  color: var(--tg-theme-text-color);
+}
+
 .debug-layer {
   display: none;
   z-index: 3;

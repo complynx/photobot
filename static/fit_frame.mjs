@@ -16,6 +16,8 @@ let photo = document.querySelector(".photo img");
 let frame = document.querySelector(".overlay");
 let cancel_btn = document.querySelector(".button button[name=cancel]");
 let submit_btn = document.querySelector(".button button[name=done]");
+let open_file_input = document.querySelector(".open-file input[type=file]");
+let download_btn = document.querySelector(".open-file button.download");
 console.log(photo, frame, cancel_btn, submit_btn);
 
 
@@ -439,6 +441,113 @@ function onMouseWheel(e) {
     let scaleFactor = e.deltaY > 0 ? 1-scaleAddition : 1 + scaleAddition;
     scalePhoto(scaleFactor, e.clientX, e.clientY);
 }
+
+open_file_input.addEventListener('change', function(e) {
+    var file = e.target.files[0]; // Get the selected file
+    var reader = new FileReader();
+  
+    reader.onloadend = function() {
+        // When the load finishes, set the src of the image
+        photo.src = reader.result;
+    }
+  
+    if (file) {
+        // If a file was selected, start the load
+        reader.readAsDataURL(file);
+    } else {
+        // Otherwise, clear the previous image
+        // document.getElementById('displayImage').src = "";
+    }
+});
+download_btn.addEventListener("click", ()=>{
+    let frame_img = new Image();
+    frame_img.src = "static/frame.png";
+    
+    function decomposeTransformMatrix(transformationMatrix) {
+        const [a, c, e] = transformationMatrix[0];
+        const [b, d, f] = transformationMatrix[1];
+    
+        const scalingX = Math.sqrt(a * a + c * c);
+        const scalingY = Math.sqrt(b * b + d * d);
+
+        const rotation = Math.atan2(b, a);
+
+        // const new_a = scalingX * Math.cos(rotation);
+        // const new_b = scalingX * Math.sin(rotation);
+        // const new_c = -scalingY * Math.sin(rotation);
+        // const new_d = scalingY * Math.cos(rotation);
+        // const new_e = e * new_a + f * new_c + e;
+        // const new_f = e * new_b + f * new_d + f;
+        // console.log(e,f,new_e, new_f);
+
+        return {
+            scaling: { x: scalingX, y: scalingY },
+            rotation: rotation,
+            translation: { x: e, y: f }
+        };
+    }
+
+    function generateCroppedImage() {
+        let real_frame_size = frame_img.width;
+        // Create a new canvas for the cropped image
+        const croppedCanvas = document.createElement("canvas");
+        croppedCanvas.width = real_frame_size;
+        croppedCanvas.height = real_frame_size;
+        const ctx = croppedCanvas.getContext("2d");
+        
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, real_frame_size, real_frame_size);
+    
+        // Save the current transformation matrix and set it to identity
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    
+        // Apply the transforms and draw the photo on the canvas
+        ctx.translate(real_frame_size / 2, real_frame_size / 2);
+    
+        // Calculate the necessary transforms
+        // const [a, c, e] = transformationMatrix[0];
+        // const [b, d, f] = transformationMatrix[1];
+        // ctx.transform(a, b, c, d, e, f);
+    
+        const decomposition = decomposeTransformMatrix(transformationMatrix);
+    
+        const { scaling, rotation, translation } = decomposition;
+        ctx.translate(translation.x, translation.y);
+        ctx.scale(scaling.x, scaling.y);
+        ctx.rotate(rotation);
+    
+        ctx.drawImage(photo, -pw / 2, -ph / 2, pw, ph);
+    
+        // Restore the original transformation matrix
+        ctx.restore();
+
+        ctx.drawImage(frame_img, 0, 0);
+    
+        // Get the data URL of the cropped image
+        const croppedDataURL = croppedCanvas.toDataURL("image/png");
+    
+        return croppedDataURL;
+    }
+
+    new Promise((res,rej) => {
+        if(frame_img.complete) {
+            res(frame_img);
+        }else{
+            frame_img.onload=res;
+            frame_img.onabort=rej;
+        }
+    }).then(()=>{
+        let dataURL = generateCroppedImage();
+        // Create a link element
+        let link = document.createElement('a');
+        link.href = dataURL;
+        link.download = `avatar.png`; // Specify the desired filename
+    
+        // Programmatically trigger a click event on the link to start the download
+        link.click();
+    })
+})
 
 photo.addEventListener("load", recalculate_photo, {passive:true});
 window.addEventListener("resize", recalculate_all, {passive:true});
