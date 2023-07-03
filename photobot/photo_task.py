@@ -170,14 +170,12 @@ class PhotoTask(object):
     
     @async_thread
     def finalize_avatar(self):
-        source = Image.open(self.get_cropped_file()).convert('RGBA')
+        source = Image.open(self.get_cropped_file())
+        frame = Image.open(frame_filename)
 
-        frame = Image.open(frame_filename).convert('RGBA')
-        composition = Image.new('RGBA', source.size)
+        from .pipeline import pipeline
 
-        # Perform alpha compositing to combine the two images
-        composition.alpha_composite(source)
-        composition.alpha_composite(frame)
+        composition = pipeline(source, frame)
 
         final = composition.resize(
             (final_frame_size, final_frame_size),
