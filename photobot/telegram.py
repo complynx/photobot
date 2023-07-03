@@ -348,6 +348,40 @@ async def avatar_debug(update: Update, context: CallbackContext):
     task.debug_code = code
     await update.message.reply_text("code accepted")
 
+async def new_cmd(update: Update, context: CallbackContext):
+    """Handle the /avatar command, requesting a photo."""
+    logger.info(f"Received /new command from {update.effective_user}")
+    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+
+    col = context.application.base_app.frames_collection
+
+    if context.application.base_app.frames_collection is not None:
+        try:
+            await context.application.base_app.users_collection.update_one({
+                "user_id": update.effective_user.id,
+                "bot_id": context.bot.id,
+            }, {
+                "$set": {
+                    "username": update.effective_user.username,
+                    "first_name": update.effective_user.first_name,
+                    "last_name": update.effective_user.last_name,
+                    "language_code": update.effective_user.language_code,
+                    "last_avatar_call": datetime.datetime.now(),
+                },
+                "$inc": {
+                    "avatars_called": 1,
+                },
+                "$setOnInsert": {
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                    "bot_username": context.bot.username,
+                    "first_seen": datetime.datetime.now(),
+                }
+            }, upsert=True)
+        except Exception as e:
+            logger.error(f"mongodb update error: {e}", exc_info=1)
+
+
 class TGApplication(Application):
     base_app = None
     config: Config
@@ -391,6 +425,8 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
         ],
         conversation_timeout=config.photo.conversation_timeout
     )
+
+    application.add_handler(CommandHandler("new", ))
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(avatar_conversation)
