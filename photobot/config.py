@@ -27,6 +27,7 @@ class LocalizationSettings(BaseSettings):
 class UsersDB(BaseSettings):
     address: str = Field("", env="BOT_MONGODB_ADDRESS")
     collection: str = Field("bot_users", env="BOT_MONGODB_COLLECTION")
+    frames_collection: str = Field("bot_frames", env="BOT_MONGODB_FRAMES_COLLECTION")
 
 class Config(BaseSettings):
     telegram: TelegramSettings

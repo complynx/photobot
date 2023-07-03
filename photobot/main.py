@@ -15,6 +15,7 @@ class App(object):
     server = None
     localization = None
     users_collection = None
+    frames_collection = None
 
 async def main(cfg: Config):
     app = App()
@@ -25,6 +26,7 @@ async def main(cfg: Config):
         logger.info(f"db address {cfg.users_db.address}")
         mongodb = AsyncIOMotorClient(cfg.users_db.address).get_database()
         app.users_collection = mongodb[cfg.users_db.collection]
+        app.frames_collection = mongodb[cfg.users_db.frames_collection]
 
     init_photo_tasker(cfg)
     await create_server(cfg, app)
