@@ -21,7 +21,7 @@ import datetime
 
 logger = logging.getLogger(__name__)
 
-PHOTO, CROPPER = range(2)
+CROPPER = 1
 
 def full_link(app: "TGApplication", link: str) -> str:
     link = f"{app.config.server.base}{link}"
@@ -64,51 +64,7 @@ async def start(update: Update, context: CallbackContext):
         except Exception as e:
             logger.error(f"mongodb update error: {e}", exc_info=1)
 
-    await context.bot.set_my_commands([("/avatar", l("create-userpic"))])
     await update.message.reply_html(l("start-message"))
-
-async def avatar_cmd(update: Update, context: CallbackContext):
-    """Handle the /avatar command, requesting a photo."""
-    logger.info(f"Received /avatar command from {update.effective_user}")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
-
-    if context.application.base_app.users_collection is not None:
-        try:
-            await context.application.base_app.users_collection.update_one({
-                "user_id": update.effective_user.id,
-                "bot_id": context.bot.id,
-            }, {
-                "$set": {
-                    "username": update.effective_user.username,
-                    "first_name": update.effective_user.first_name,
-                    "last_name": update.effective_user.last_name,
-                    "language_code": update.effective_user.language_code,
-                    "last_avatar_call": datetime.datetime.now(),
-                },
-                "$inc": {
-                    "avatars_called": 1,
-                },
-                "$setOnInsert": {
-                    "user_id": update.effective_user.id,
-                    "bot_id": context.bot.id,
-                    "bot_username": context.bot.username,
-                    "first_seen": datetime.datetime.now(),
-                }
-            }, upsert=True)
-        except Exception as e:
-            logger.error(f"mongodb update error: {e}", exc_info=1)
-
-    await avatar_cancel_inflow(update, context)
-    buttons = [[l("cancel-command")]]
-    await update.message.reply_html(
-        l("photo-prompt"),
-        reply_markup = ReplyKeyboardMarkup(
-            buttons,
-            resize_keyboard=True,
-            one_time_keyboard=True
-        )
-    )
-    return PHOTO
 
 async def avatar_received_image(update: Update, context: CallbackContext):
     """Handle the photo submission as photo"""
@@ -138,6 +94,32 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
     await avatar_cancel_inner(update, context)
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
 
+    if context.application.base_app.users_collection is not None:
+        try:
+            await context.application.base_app.users_collection.update_one({
+                "user_id": update.effective_user.id,
+                "bot_id": context.bot.id,
+            }, {
+                "$set": {
+                    "username": update.effective_user.username,
+                    "first_name": update.effective_user.first_name,
+                    "last_name": update.effective_user.last_name,
+                    "language_code": update.effective_user.language_code,
+                    "last_avatar_call": datetime.datetime.now(),
+                },
+                "$inc": {
+                    "avatars_called": 1,
+                },
+                "$setOnInsert": {
+                    "user_id": update.effective_user.id,
+                    "bot_id": context.bot.id,
+                    "bot_username": context.bot.username,
+                    "first_seen": datetime.datetime.now(),
+                }
+            }, upsert=True)
+        except Exception as e:
+            logger.error(f"mongodb update error: {e}", exc_info=1)
+
     task = PhotoTask(update.effective_chat, update.effective_user)
     task.add_file(file_path, file_ext)
     buttons = [
@@ -149,7 +131,6 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
         ],
         [l("autocrop-command")],[l("cancel-command")]
     ]
-
 
     markup = ReplyKeyboardMarkup(
         buttons,
@@ -368,13 +349,10 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
     # Conversation handler for /аватар command
     avatar_conversation = ConversationHandler(
         entry_points=[
-            CommandHandler("avatar", avatar_cmd),
+            MessageHandler(filters.PHOTO, avatar_received_image),
+            MessageHandler(filters.Document.IMAGE, avatar_received_document_image),
         ],
         states={
-            PHOTO: [
-                MessageHandler(filters.PHOTO, avatar_received_image),
-                MessageHandler(filters.Document.IMAGE, avatar_received_document_image),
-            ],
             CROPPER: [
                 MessageHandler(filters.StatusUpdate.WEB_APP_DATA, avatar_crop_matrix),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, avatar_autocrop_and_fallback),
@@ -386,7 +364,6 @@ async def create_telegram_bot(config: Config, app) -> TGApplication:
         fallbacks=[
             MessageHandler(filters.Regex(re.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I|re.U)), avatar_debug),
             CommandHandler("cancel", avatar_cancel_command),
-            CommandHandler("avatar", avatar_cancel_command),
             MessageHandler(filters.TEXT, avatar_fallback)
         ],
         conversation_timeout=config.photo.conversation_timeout

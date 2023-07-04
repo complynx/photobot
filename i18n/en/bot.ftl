@@ -1,25 +1,19 @@
 create-userpic = Create userpic
 start-message =
-    Hello. I'm a simple bot that will help you to create a user image with frame. To do it, call the command
-    /avatar
+    Hello. I'm a simple bot that will help you to create a user image with frame. To do it, just send me your picture.
 cancel-command = Cancel
 autocrop-command = Automatic
-photo-prompt =
-    📸 Send me your best photo.
-    
-    P.S. If at some point in the process you'll think it takes too long, you may try again by calling
-    /avatar
 select-position-command = Select position
 select-position-prompt = Photo received. Now select how it will be placed in the frame.
 processing-photo = Photo is processing... (it may take some time)
 final-message =
-    🔁 If you want to process another photo, call the command /avatar again.
+    🔁 If you want to process another photo, just send me another picture.
 processing-cancelled = The existing photo processing has been cancelled.
 processing-cancelled-message = Photo processing has been cancelled.
-processing-error = Something went wrong with your photo processing, try again: /avatar
+processing-error = Something went wrong with your photo processing, try again by sending a new picture.
 conversation-timeout =
     Photo processing has been cancelled because there was no input from user for substantial amount of time.
-    You can always come back and try again with the command /avatar
+    You can always come back and try again later.
 unknown-input = I don't know this command...
 frame-mover-help-desktop =
     Photo can be moved with a mouse, to start turning it hold Shift.
