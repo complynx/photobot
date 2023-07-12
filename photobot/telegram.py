@@ -194,10 +194,18 @@ async def avatar_crop_matrix(update: Update, context):
     return await avatar_crop_stage2(task, update, context)
 
 async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackContext):
+    conf: Config = context.application.config
     l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
     try:
         await task.finalize_avatar()
         await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
+        if conf.photo.cover_path is not None and os.path.isfile(conf.photo.cover_path):
+            _, fname = os.path.split(conf.photo.cover_path)
+            await update.message.reply_document(
+                conf.photo.cover_path,
+                filename=fname,
+                caption=l("cover-caption-message")
+            )
         await update.message.reply_text(
             l("final-message"),
             reply_markup=ReplyKeyboardRemove()

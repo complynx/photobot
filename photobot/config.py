@@ -16,6 +16,7 @@ class ServerSettings(BaseSettings):
 class PhotoSettings(BaseSettings):
     cpu_threads: int = Field(8)
     storage_path: str = Field("photos")
+    cover_path: str|None = Field(None)
     conversation_timeout: timedelta = Field(timedelta(hours=2))
     admins: list[int] = []
 

@@ -6,6 +6,8 @@ autocrop-command = Automatic
 select-position-command = Select position
 select-position-prompt = Photo received. Now select how it will be placed in the frame.
 processing-photo = Photo is processing... (it may take some time)
+cover-caption-message =
+    ❗️If you use this photo in the social networks with profile covers, it goes well with this one.
 final-message =
     🔁 If you want to process another photo, just send me another picture.
 processing-cancelled = The existing photo processing has been cancelled.
