@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 DEADLINE_BASIC = 24*60*60 # 24 hours
 
-real_frame_size = 2000
+real_frame_size = 1080
 
 files_path = "photos"
 
