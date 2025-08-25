@@ -1,0 +1,40 @@
+# Exclude Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+
+# Git
+.git
+.gitignore
+
+# Eggs / packaging
+*.egg-info
+build/
+dist/
+
+# Local configs / secrets (keep template)
+config.yaml
+config/*.yaml
+!config/config.template.yaml
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# Tests (none yet) placeholder
+/tests/
+
+# Photos generated at runtime
+photos/
+
+# Node / front-end caches
+node_modules/
+
+# Docker
+Dockerfile*
+!.dockerignore
+
+# Misc
+.DS_Store
