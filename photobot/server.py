@@ -62,7 +62,11 @@ class FitFrameHandler(tornado.web.RequestHandler):
         """
         try:
             content_type = self.request.headers.get('Content-Type','')
-            if 'application/json' in content_type:
+            if content_type.startswith('image/png'):
+                # Raw binary with ?id= param
+                id_str = self.get_query_argument('id','')
+                image_data = self.request.body
+            elif 'application/json' in content_type:
                 payload = json.loads(self.request.body.decode('utf-8'))
                 id_str = payload.get('id','')
                 image_data = payload.get('image','')
@@ -70,11 +74,12 @@ class FitFrameHandler(tornado.web.RequestHandler):
                 id_str = self.get_body_argument('id','')
                 image_data = self.get_body_argument('image','')
             else:
-                # treat body as raw binary PNG
+                # Fallback treat as raw binary
                 id_str = self.get_query_argument('id','')
                 image_data = self.request.body
             task = get_by_uuid(id_str)
         except Exception:
+            logger.error("bad upload request", exc_info=1)
             raise tornado.web.HTTPError(400)
 
         # Expect a data URL or bytes

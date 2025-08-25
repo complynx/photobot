@@ -92,17 +92,23 @@ window.addEventListener('resize', ()=>{recalcLayout();});
 photoEl.addEventListener('load', ()=>{initPhoto(); draw();});
 
 function exportData(){
-    // Render the transformed photo at full resolution and upload it.
+    // Render transformed photo at full resolution (real_frame_size) and upload as binary PNG.
     const exportCanvas=document.createElement('canvas');
     exportCanvas.width=real_frame_size; exportCanvas.height=real_frame_size;
     const ect=exportCanvas.getContext('2d');
     (function render(){
         const size=exportCanvas.width; ect.clearRect(0,0,size,size); ect.save(); ect.translate(size/2,size/2); const S=size/real_frame_size; ect.scale(S,S); const d=decompose(transformationMatrix); ect.translate(d.translation.x+alignment.x,d.translation.y+alignment.y); ect.scale(d.scaling.x,d.scaling.y); ect.rotate(d.rotation); ect.drawImage(photoEl,-pw/2,-ph/2,pw,ph); ect.restore(); })();
-    const dataUrl = exportCanvas.toDataURL('image/png');
-    fetch(`/fit_frame?id=${encodeURIComponent(photo_id)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id:photo_id,image:dataUrl})})
-        .then(r=>{ if(!r.ok) throw new Error('upload failed'); return r.json(); })
-        .then(()=>{ Telegram.WebApp.sendData(JSON.stringify({id:photo_id, uploaded:true})); Telegram.WebApp.close(); })
-        .catch(err=>{ console.error('Upload failed', err); alert('Upload failed, please try again.'); });
+
+    const endpoint = new URL('fit_frame', window.location.href); // keeps any subpath prefix
+    endpoint.search = `?id=${encodeURIComponent(photo_id)}`;
+
+    exportCanvas.toBlob(blob=>{
+        if(!blob){ alert('Export failed'); return; }
+        fetch(endpoint.toString(), {method:'POST', headers:{'Content-Type':'image/png'}, body:blob})
+            .then(r=>{ if(!r.ok) throw new Error('upload failed'); return r.json(); })
+            .then(()=>{ Telegram.WebApp.sendData(JSON.stringify({id:photo_id, uploaded:true})); Telegram.WebApp.close(); })
+            .catch(err=>{ console.error('Upload failed', err); alert('Upload failed, please check network and try again.'); });
+    }, 'image/png');
 }
 Telegram.WebApp.MainButton.setText(finish_button_text);
 Telegram.WebApp.MainButton.show();
