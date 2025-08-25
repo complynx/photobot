@@ -18,10 +18,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy only files needed for dependency resolution & install dependencies
+# Copy package sources & setup for dependency resolution; then install into venv
 WORKDIR /build
 COPY setup.py ./
-RUN uv pip install --system --no-cache-dir . \
+COPY photobot/ photobot/
+RUN uv pip install --no-cache-dir . \
  && rm -rf /root/.cache /tmp/uv-cache
 
 #############################
@@ -50,7 +51,7 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 WORKDIR /app
 
-# Copy application source (after venv for better layer caching when code changes)
+# Copy application source (after venv for better layer caching when code changes) excluding already copied python package if unchanged
 COPY photobot/ photobot/
 COPY config/ config/
 COPY i18n/ i18n/
