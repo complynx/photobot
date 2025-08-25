@@ -1,27 +1,41 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <script>
-            const photo_id="{{id}}";
-            const real_frame_size={{real_frame_size}};
-            const help_desktop={% raw json_encode(help_desktop) %};
-            const help_mobile={% raw json_encode(help_mobile) %};
-            const finish_button_text={% raw json_encode(finish_button_text) %};
-            const debug_code="{{task.debug_code}}";
-        </script>
-        <link rel="stylesheet" type="text/css" href="./static/fit_frame.css"></link>
+            <script>
+                // Placeholder; real values assigned via body data-* attributes below.
+            </script>
+        <link rel="stylesheet" type="text/css" href="./static/fit_frame.css" />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <script type="module" src="./static/fit_frame.mjs"></script>
     </head>
-    <body>
+        <body data-photo-id="{{id}}"
+                    data-real-frame-size="{{real_frame_size}}"
+                    data-help-desktop='{% raw json_encode(help_desktop) %}'
+                    data-help-mobile='{% raw json_encode(help_mobile) %}'
+                    data-finish-button-text='{% raw json_encode(finish_button_text) %}'
+                    data-debug-code="{{task.debug_code}}">
+            <script>
+                (function(){
+                    const ds=document.body.dataset;
+                    window.photo_id=ds.photoId;
+                    window.real_frame_size=parseInt(ds.realFrameSize,10)||0;
+                    try{window.help_desktop=JSON.parse(ds.helpDesktop);}catch{window.help_desktop=ds.helpDesktop||'';}
+                    try{window.help_mobile=JSON.parse(ds.helpMobile);}catch{window.help_mobile=ds.helpMobile||'';}
+                    try{window.finish_button_text=JSON.parse(ds.finishButtonText);}catch{window.finish_button_text=ds.finishButtonText||'';}
+                    window.debug_code=ds.debugCode||'';
+                })();
+            </script>
+        <img src="static/frame.png" alt="" class="frame_source" />
         <div class="help">{{frame_mover_help_unified}}</div>
+        <div class="help-realign">{{help_realign}}</div>
         <div class="photo">
-            <div class="ancor"><img src="photos/{{id}}" alt=""></div>
+            <div class="ancor"><img src="photos/{{id}}" alt="" /></div>
         </div>
         <div class="overlay">&nbsp;</div>
         <div class="debug-layer">
-            <input type="text" name="remotejs" placeholder="remotejs"><button class="remotejs">init remote</button>
+            <input type="text" name="remotejs" placeholder="remotejs" /><button class="remotejs">init remote</button>
             <button class="canvas">canvas</button>
+            <button class="realign">realign</button>
             <div class="link"></div>
         </div>
     </body>

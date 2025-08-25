@@ -5,6 +5,8 @@ import tornado.platform.asyncio
 import os
 from .config import Config
 from .photo_task import get_by_uuid, real_frame_size
+import base64
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +18,8 @@ class FitFrameHandler(tornado.web.RequestHandler):
     async def get(self):
         id_str = self.get_query_argument("id", default="")
         locale_str = self.get_query_argument("locale", default="en")
-        l = lambda s: self.app.localization(s, locale=locale_str)
+        def localize(s: str):
+            return self.app.localization(s, locale=locale_str)
 
         try:
             task = get_by_uuid(id_str)
@@ -40,13 +43,65 @@ class FitFrameHandler(tornado.web.RequestHandler):
                 task=task,
                 id=id_str,
                 real_frame_size=real_frame_size,
-                help_desktop=l("frame-mover-help-desktop"),
-                help_mobile=l("frame-mover-help-mobile"),
-                frame_mover_help_unified=l("frame-mover-help-unified"),
-                finish_button_text=l("frame-mover-finish-button-text"),
+                help_desktop=localize("frame-mover-help-desktop"),
+                help_mobile=localize("frame-mover-help-mobile"),
+                frame_mover_help_unified=localize("frame-mover-help-unified"),
+                finish_button_text=localize("frame-mover-finish-button-text"),
+                help_realign=localize("frame-realign-message"),
             )
         except (KeyError, ValueError):
             raise tornado.web.HTTPError(404)
+
+    async def post(self):
+        """Accept cropped PNG (data URL or raw bytes) from canvas and store as cropped file.
+        Body formats supported:
+        - JSON { id: <uuid>, image: 'data:image/png;base64,...' }
+        - form-data / x-www-form-urlencoded with fields id, image
+        - raw binary with query param ?id=...
+        Returns JSON {status:"ok"} or error.
+        """
+        try:
+            content_type = self.request.headers.get('Content-Type','')
+            if 'application/json' in content_type:
+                payload = json.loads(self.request.body.decode('utf-8'))
+                id_str = payload.get('id','')
+                image_data = payload.get('image','')
+            elif 'application/x-www-form-urlencoded' in content_type or 'multipart/form-data' in content_type:
+                id_str = self.get_body_argument('id','')
+                image_data = self.get_body_argument('image','')
+            else:
+                # treat body as raw binary PNG
+                id_str = self.get_query_argument('id','')
+                image_data = self.request.body
+            task = get_by_uuid(id_str)
+        except Exception:
+            raise tornado.web.HTTPError(400)
+
+        # Expect a data URL or bytes
+        binary: bytes
+        if isinstance(image_data, str):
+            if image_data.startswith('data:image'):
+                try:
+                    header, b64data = image_data.split(',',1)
+                    binary = base64.b64decode(b64data)
+                except Exception:
+                    raise tornado.web.HTTPError(400)
+            else:
+                # assume base64 without header
+                try:
+                    binary = base64.b64decode(image_data)
+                except Exception:
+                    raise tornado.web.HTTPError(400)
+        else:
+            binary = image_data
+
+        try:
+            task.set_cropped_file_from_upload(binary)
+        except Exception as e:
+            logger.error("error writing uploaded cropped image: %s", e, exc_info=1)
+            raise tornado.web.HTTPError(500)
+        self.set_header('Content-Type','application/json')
+        self.write({'status':'ok'})
 
 
 

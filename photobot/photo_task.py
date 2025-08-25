@@ -173,6 +173,17 @@ class PhotoTask(object):
         source = Image.open(self.get_cropped_file())
         frame = Image.open(frame_filename)
 
+        # Normalize sizes: ensure source is real_frame_size square and frame matches it.
+        try:
+            if source.size != (real_frame_size, real_frame_size):
+                logger.warning("Uploaded cropped source size %s != expected %s; resizing", source.size, real_frame_size)
+                source = source.resize((real_frame_size, real_frame_size), resample=Image.LANCZOS)
+            if frame.size != source.size:
+                logger.warning("Frame size %s != source size %s; resizing frame", frame.size, source.size)
+                frame = frame.resize(source.size, resample=Image.LANCZOS)
+        except Exception as e:
+            logger.error("Error normalizing sizes: %s", e, exc_info=1)
+
         from .pipeline import pipeline
 
         composition = pipeline(source, frame)
@@ -200,6 +211,13 @@ class PhotoTask(object):
             base_name, _ = os.path.splitext(self.file)
             return base_name + "_cropped.png"
         return self.cropped_file
+
+    def set_cropped_file_from_upload(self, data: bytes):
+        """Store already-cropped square PNG uploaded from the webapp."""
+        fn = self.get_cropped_file(True)
+        with open(fn, 'wb') as f:
+            f.write(data)
+        self.cropped_file = fn
 
     def get_final_file(self, generate=False):
         if self.final_file is None and generate and self.file is not None:

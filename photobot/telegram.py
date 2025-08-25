@@ -38,10 +38,13 @@ def full_link(app: "TGApplication", link: str) -> str:
             link = re.sub(r"http://(([a-z]+)\.)?localhost(:\d+)?/", f"https://complynx.net/testbot/{host}/", link)
     return link
 
+def _localize(update: Update, context: CallbackContext):
+    return lambda key: context.application.base_app.localization(key, locale=update.effective_user.language_code)
+
 async def start(update: Update, context: CallbackContext):
     """Send a welcome message when the /start command is issued."""
     logger.info(f"start called: {update.effective_user}")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
 
     if context.application.base_app.users_collection is not None:
         try:
@@ -68,7 +71,7 @@ async def start(update: Update, context: CallbackContext):
         except Exception as e:
             logger.error(f"mongodb update error: {e}", exc_info=1)
 
-    await update.message.reply_html(l("start-message"))
+    await update.message.reply_html(loc("start-message"))
 
 async def avatar_received_image(update: Update, context: CallbackContext):
     """Handle the photo submission as photo"""
@@ -96,7 +99,7 @@ async def avatar_received_document_image(update: Update, context: CallbackContex
 
 async def avatar_received_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
     await avatar_cancel_inner(update, context)
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
 
     if context.application.base_app.users_collection is not None:
         try:
@@ -129,11 +132,11 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
     buttons = [
         [
             KeyboardButton(
-                l("select-position-command"),
+                loc("select-position-command"),
                 web_app=WebAppInfo(full_link(context.application, f"/fit_frame?id={task.id.hex}&locale={update.effective_user.language_code}"))
             )
         ],
-        [l("autocrop-command")],[l("cancel-command")]
+    [loc("autocrop-command")],[loc("cancel-command")]
     ]
 
     markup = ReplyKeyboardMarkup(
@@ -142,13 +145,13 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
         one_time_keyboard=True
     )
     await update.message.reply_text(
-        l("select-position-prompt"),
+    loc("select-position-prompt"),
         reply_markup=markup
     )
     return CROPPER
 
 async def avatar_crop_auto(update: Update, context: CallbackContext):
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -156,7 +159,7 @@ async def avatar_crop_auto(update: Update, context: CallbackContext):
     except Exception as e:
         logger.error("Exception in autocrop: %s", e, exc_info=1)
         return await avatar_error(update, context)
-    await update.message.reply_text(l("processing-photo"), reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text(loc("processing-photo"), reply_markup=ReplyKeyboardRemove())
     
     try:
         await task.resize_avatar()
@@ -166,7 +169,7 @@ async def avatar_crop_auto(update: Update, context: CallbackContext):
     return await avatar_crop_stage2(task, update, context)
 
 async def avatar_crop_matrix(update: Update, context):
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     try:
         task = get_by_user(update.effective_user.id)
     except KeyError:
@@ -177,29 +180,21 @@ async def avatar_crop_matrix(update: Update, context):
     try:
         data = json.loads(update.effective_message.web_app_data.data)
         id_str = data['id']
-        a = float(data['a'])
-        b = float(data['b'])
-        c = float(data['c'])
-        d = float(data['d'])
-        e = float(data['e'])
-        f = float(data['f'])
+        if task.id.hex != id_str:
+            return await avatar_error(update, context)
+        if not data.get('uploaded'):
+            # We now rely solely on uploaded image; if missing treat as error
+            logger.error("Matrix-only payload received after client removal of matrix path")
+            return await avatar_error(update, context)
     except Exception as e:
-        logger.error("Exception in image_crop_matrix: %s", e, exc_info=1)
+        logger.error("Exception parsing web_app_data: %s", e, exc_info=1)
         return await avatar_error(update, context)
-    if task.id.hex != id_str:
-        return await avatar_error(update, context)
-    await update.message.reply_text(l("processing-photo"), reply_markup=ReplyKeyboardRemove())
-    
-    try:
-        await task.transform_avatar(a,b,c,d,e,f)
-    except Exception as e:
-        logger.error("Exception in image_crop_matrix: %s", e, exc_info=1)
-        return await avatar_error(update, context)
+    await update.message.reply_text(loc("processing-photo"), reply_markup=ReplyKeyboardRemove())
     return await avatar_crop_stage2(task, update, context)
 
 async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackContext):
     conf: Config = context.application.config
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     try:
         await task.finalize_avatar()
         await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
@@ -208,25 +203,22 @@ async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackC
             await update.message.reply_document(
                 conf.photo.cover_path,
                 filename=fname,
-                caption=l("cover-caption-message")
+                caption=loc("cover-caption-message")
             )
         await update.message.reply_text(
-            l("final-message"),
+            loc("final-message"),
             reply_markup=ReplyKeyboardRemove()
         )
-
         if context.application.base_app.users_collection is not None:
             try:
                 await context.application.base_app.users_collection.update_one({
                     "user_id": update.effective_user.id,
                     "bot_id": context.bot.id,
                 }, {
-                    "$inc": {
-                        "avatars_created": 1,
-                    }
+                    "$inc": {"avatars_created": 1}
                 })
-            except Exception as e:
-                logger.error(f"mongodb update error: {e}", exc_info=1)
+            except Exception as ex:
+                logger.error(f"mongodb update error: {ex}", exc_info=1)
     except Exception as e:
         logger.error("Exception in cropped_st2: %s", e, exc_info=1)
         return await avatar_error(update, context)
@@ -259,10 +251,10 @@ async def avatar_cancel_inner(update: Update, context: CallbackContext):
 async def avatar_cancel_inflow(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     if await avatar_cancel_inner(update, context):
         await update.message.reply_text(
-            l("processing-cancelled"),
+            loc("processing-cancelled"),
             reply_markup=ReplyKeyboardRemove()
         )
     return ConversationHandler.END
@@ -270,10 +262,10 @@ async def avatar_cancel_inflow(update: Update, context: CallbackContext):
 async def avatar_cancel_command(update: Update, context: CallbackContext):
     """Handle the cancel command during the avatar submission."""
     logger.info(f"Avatar submission for {update.effective_user} canceled")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     await avatar_cancel_inner(update, context)
     await update.message.reply_text(
-        l("processing-cancelled-message"),
+    loc("processing-cancelled-message"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
@@ -281,10 +273,10 @@ async def avatar_cancel_command(update: Update, context: CallbackContext):
 async def avatar_autocrop_and_fallback(update: Update, context: CallbackContext):
     """Handle text messages from buttons using locale in case of autocrop."""
     logger.info(f"avatar_autocrop_and_fallback called: {update.effective_user}")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
 
     cmd = update.message.text.lower().strip()
-    autocrop_str = l("autocrop-command").lower().strip()
+    autocrop_str = loc("autocrop-command").lower().strip()
     if cmd == autocrop_str:
         return await avatar_crop_auto(update, context)
     return await avatar_fallback(update, context)
@@ -292,29 +284,29 @@ async def avatar_autocrop_and_fallback(update: Update, context: CallbackContext)
 async def avatar_fallback(update: Update, context: CallbackContext):
     """Handle text messages from buttons using locale."""
     logger.info(f"avatar_fallback called: {update.effective_user}")
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
 
     cmd = update.message.text.lower().strip()
-    cancel_str = l("cancel-command").lower().strip()
+    cancel_str = loc("cancel-command").lower().strip()
     if cmd == cancel_str or cmd == "cancel":
         return await avatar_cancel_command(update, context)
     
-    await update.message.reply_html(l("unknown-input"))
+    await update.message.reply_html(loc("unknown-input"))
 
 async def avatar_error(update: Update, context: CallbackContext):
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     await avatar_cancel_inner(update, context)
     await update.message.reply_text(
-        l("processing-error"),
+    loc("processing-error"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
 
 async def avatar_timeout(update: Update, context: CallbackContext):
-    l = lambda s: context.application.base_app.localization(s, locale=update.effective_user.language_code)
+    loc = _localize(update, context)
     await avatar_cancel_inner(update, context)
     await update.message.reply_text(
-        l("conversation-timeout"),
+    loc("conversation-timeout"),
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
@@ -351,7 +343,7 @@ class TGApplication(Application):
         self.config = base_config
 
 @asynccontextmanager
-async def create_telegram_bot(config: Config, app) -> TGApplication:
+async def create_telegram_bot(config: Config, app):
     global web_app_base
     application = ApplicationBuilder().application_class(TGApplication, kwargs={
         "base_app": app,

@@ -27,3 +27,4 @@ frame-mover-help-unified =
     Photo can be dragged, scaled and turned.
     To scale and turn with mouse, use scrolling or hold Shift.
 frame-mover-finish-button-text = Submit
+frame-realign-message = Drag the photo so the frame aligns perfectly, then press Submit.
