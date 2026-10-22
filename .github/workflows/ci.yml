@@ -17,3 +17,5 @@ jobs:
         run: docker build --pull -t photobot:check .
       - name: Check the built runtime
         run: docker run --rm -i --network none photobot:check python - < tests/check_runtime.py
+      - name: Check Telegram photo conversation
+        run: docker run --rm -i --network none photobot:check python - < tests/check_telegram.py

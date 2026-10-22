@@ -16,4 +16,9 @@ To check the built image without production credentials:
 ```sh
 docker build --pull -t photobot:check .
 docker run --rm -i --network none photobot:check python - < tests/check_runtime.py
+docker run --rm -i --network none photobot:check python - < tests/check_telegram.py
 ```
+
+The Telegram check uses an in-memory Bot API transport with real polling,
+handlers, localization, and photo processing. It checks `/start`, photo download,
+automatic cropping, the uploaded JPEG, and temporary-file cleanup.
