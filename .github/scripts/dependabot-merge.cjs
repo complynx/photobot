@@ -23,10 +23,22 @@ module.exports = async ({github, context, core, wait = ms => new Promise(resolve
     if (!eligible(pr)) continue;
     if (pr.mergeable === null) throw new Error(`GitHub has not calculated mergeability for PR #${pr.number}`);
 
-    const checks = await github.paginate(github.rest.checks.listForRef, {
-      owner, repo, ref: pr.head.sha, filter: 'latest',
-    });
-    const {data: status} = await github.rest.repos.getCombinedStatusForRef({owner, repo, ref: pr.head.sha});
+    let checks, status;
+    // Other CI providers may finish after Container checks. Wait up to five minutes.
+    for (let retry = 0; retry <= 10; retry++) {
+      checks = await github.paginate(github.rest.checks.listForRef, {
+        owner, repo, ref: pr.head.sha, filter: 'latest',
+      });
+      ({data: status} = await github.rest.repos.getCombinedStatusForRef({owner, repo, ref: pr.head.sha}));
+      const pending = checks.some(c => c.status !== 'completed') ||
+        (status.total_count > 0 && status.state === 'pending');
+      if (!pending) break;
+      if (retry === 10) throw new Error(`Other checks are still pending for PR #${pr.number}; rerun after they finish`);
+      await wait(30000);
+      ({data: pr} = await github.rest.pulls.get({owner, repo, pull_number: candidate.number}));
+      if (!eligible(pr)) break;
+    }
+    if (!eligible(pr)) continue;
     if (!checks.some(c => c.name === 'container' && c.app?.slug === 'github-actions' && c.conclusion === 'success') ||
         checks.some(c => c.status !== 'completed' || !['success', 'neutral', 'skipped'].includes(c.conclusion)) ||
         (status.total_count > 0 && status.state !== 'success') || !pr.mergeable) {

@@ -25,7 +25,7 @@ function fixture() {
   };
   const github = {rest, paginate: async endpoint => ({pulls: [{number: 2}], checks, reviews})[endpoint]};
   const execute = () => mergeDependabot({github, context: {repo: {owner: 'complynx', repo: 'photobot'}, payload: {workflow_run: run}}, core: {info() {}}, wait: async () => {}});
-  return {calls, pr, run, checks, status, reviews, rest, execute};
+  return {calls, pr, run, checks, status, reviews, rest, github, execute};
 }
 
 test('approve the tested commit, merge with SHA fencing, then dispatch publication', async () => {
@@ -43,10 +43,8 @@ for (const [name, alter] of Object.entries({
   'stale successful CI': f => { f.pr.head.sha = 'new-untested'; },
   'failed CI': f => { f.run.conclusion = 'failure'; },
   'push CI': f => { f.run.event = 'push'; },
-  'pending check': f => { f.checks[0].status = 'in_progress'; },
   'missing CI check': f => { f.checks.length = 0; },
   'failed check': f => { f.checks[0].conclusion = 'failure'; },
-  'pending status': f => { f.status.total_count = 1; },
   'conflicted PR': f => { f.pr.mergeable = false; },
   'requested changes': f => { f.reviews.push({user: {login: 'reviewer'}, state: 'CHANGES_REQUESTED'}); },
 })) {
@@ -83,3 +81,27 @@ test('recheck the commit after mergeability retry', async () => {
   await f.execute();
   assert.deepEqual(f.calls, []);
 });
+
+test('wait for another pending check before merging', async () => {
+  const f = fixture(); let reads = 0;
+  const paginate = f.github.paginate;
+  f.github.paginate = async (endpoint, params) => {
+    if (endpoint === 'checks') {
+      return [...f.checks, {name: 'other-ci', status: reads++ ? 'completed' : 'in_progress', conclusion: 'success'}];
+    }
+    return paginate(endpoint, params);
+  };
+  await f.execute();
+  assert.equal(reads, 2);
+  assert.deepEqual(f.calls.map(c => c[0]), ['approve', 'merge', 'dispatch']);
+});
+
+for (const kind of ['check', 'status']) {
+  test(`report a ${kind} that stays pending without approving or merging`, async () => {
+    const f = fixture();
+    if (kind === 'check') f.checks[0].status = 'in_progress';
+    else f.status.total_count = 1;
+    await assert.rejects(f.execute(), /Other checks are still pending/);
+    assert.deepEqual(f.calls, []);
+  });
+}
