@@ -1,7 +1,7 @@
 #############################
 # Builder stage
 #############################
-FROM python:3.11.17-bookworm@sha256:18d373e126e39c29c6d38e71e2f19ca66636568318fc95c7849c462b7f9d3d64 AS builder
+FROM python:3.15.1-trixie@sha256:c5075348770d14159b316d99a4f65f3771d227710877021833119b014cd1a803 AS builder
 
 # Install uv (fast Python package installer)
 COPY --from=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff /uv /uvx /usr/local/bin/
@@ -30,7 +30,7 @@ RUN uv pip sync --no-cache-dir requirements.txt \
 #############################
 # Final stage
 #############################
-FROM python:3.11.17-slim-bookworm@sha256:f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf
+FROM python:3.15.1-slim-trixie@sha256:08275f764e022331c6d3e3ca55d8cce01fa4684b02111adf0445d71806fe7941
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libjpeg62-turbo \
 	zlib1g \
 	libfreetype6 \
-	libpng16-16 \
+	libpng16-16t64 \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Copy virtual environment from builder

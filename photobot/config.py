@@ -1,35 +1,39 @@
 import yaml
 
-from pydantic import BaseSettings, Field, SecretStr 
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import timedelta
 
-class TelegramSettings(BaseSettings):
-    token: SecretStr = Field(env="TELEGRAM_TOKEN")
+class EnvironmentSettings(BaseSettings):
+    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
-class LoggingSettings(BaseSettings):
-    level: str = Field("WARNING", env="LOGGING_LEVEL")
+class TelegramSettings(EnvironmentSettings):
+    token: SecretStr = Field(validation_alias="TELEGRAM_TOKEN")
 
-class ServerSettings(BaseSettings):
+class LoggingSettings(EnvironmentSettings):
+    level: str = Field("WARNING", validation_alias="LOGGING_LEVEL")
+
+class ServerSettings(EnvironmentSettings):
     base: str
-    port: int = Field(8080, env="SERVER_PORT")
+    port: int = Field(8080, validation_alias="SERVER_PORT")
 
-class PhotoSettings(BaseSettings):
+class PhotoSettings(EnvironmentSettings):
     cpu_threads: int = Field(8)
     storage_path: str = Field("photos")
     cover_path: str|None = Field(None)
     conversation_timeout: timedelta = Field(timedelta(hours=2))
     admins: list[int] = []
 
-class LocalizationSettings(BaseSettings):
-    path: str = Field("i18n/{locale}", env="LOCALIZATION_PATH")
+class LocalizationSettings(EnvironmentSettings):
+    path: str = Field("i18n/{locale}", validation_alias="LOCALIZATION_PATH")
     fallbacks: list[str] = Field(["en-US", "en"])
     file: str = Field("bot.ftl")
 
-class UsersDB(BaseSettings):
-    address: str = Field("", env="BOT_MONGODB_ADDRESS")
-    collection: str = Field("bot_users", env="BOT_MONGODB_COLLECTION")
+class UsersDB(EnvironmentSettings):
+    address: str = Field("", validation_alias="BOT_MONGODB_ADDRESS")
+    collection: str = Field("bot_users", validation_alias="BOT_MONGODB_COLLECTION")
 
-class Config(BaseSettings):
+class Config(EnvironmentSettings):
     telegram: TelegramSettings
     logging: LoggingSettings
     server: ServerSettings
