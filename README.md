@@ -4,12 +4,16 @@ Simple chatbot for photo frames
 
 The Dockerfile pins Python and uv by version and image digest. `requirements.txt`
 pins the runtime Python dependencies; `setup.py` defines their compatibility
-ranges. Debian packages use the current security updates for Bookworm rather
+ranges. Debian packages use the current security updates for Trixie rather
 than exact package versions that can disappear from its repositories.
 
 Dependabot opens update pull requests for Docker images, Python dependencies,
-and GitHub Actions. Updates require manual review and merge. Merging to `main`
-publishes the image and triggers the existing server deployment workflow.
+and GitHub Actions. Dependabot PRs are automatically approved and squash-merged
+after the current commit passes container CI and all reported checks/statuses,
+provided no reviewer requests changes. Other PRs require manual review and merge.
+Merging to `main` publishes the image and triggers the existing server deployment
+workflow. For bot merges, automation explicitly dispatches publication because
+merges made with `GITHUB_TOKEN` do not trigger push workflows.
 
 To check the built image without production credentials:
 
