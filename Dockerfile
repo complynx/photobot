@@ -1,34 +1,36 @@
 #############################
 # Builder stage
 #############################
-FROM python:3.11-bookworm AS builder
+FROM python:3.11.17-bookworm@sha256:18d373e126e39c29c6d38e71e2f19ca66636568318fc95c7849c462b7f9d3d64 AS builder
 
 # Install uv (fast Python package installer)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff /uv /uvx /usr/local/bin/
 ENV UV_CACHE_DIR=/tmp/uv-cache \
 	PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1
 
 # (Optional) system build deps kept minimal; Pillow / numpy ship wheels.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	build-essential \
+	build-essential ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Create virtual environment using uv (ensures reproducible isolated env)
+# Create an isolated virtual environment.
 RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy package sources & setup for dependency resolution; then install into venv
 WORKDIR /build
-COPY setup.py ./
+COPY setup.py requirements.txt ./
 COPY photobot/ photobot/
-RUN uv pip install --no-cache-dir . \
+RUN uv pip sync --no-cache-dir requirements.txt \
+ && uv pip install --no-cache-dir --no-deps . \
+ && uv pip check \
  && rm -rf /root/.cache /tmp/uv-cache
 
 #############################
 # Final stage
 #############################
-FROM python:3.11-slim-bookworm
+FROM python:3.11.17-slim-bookworm@sha256:f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONUNBUFFERED=1 \
@@ -36,6 +38,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install minimal runtime libraries (needed by Pillow etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
+	ca-certificates \
 	libjpeg62-turbo \
 	zlib1g \
 	libfreetype6 \
