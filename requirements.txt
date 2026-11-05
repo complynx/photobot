@@ -2,7 +2,7 @@
 #    uv pip compile setup.py --output-file requirements.txt
 annotated-types==0.8.0
     # via pydantic
-anyio==4.15.1
+anyio==4.16.0
     # via httpx
 apscheduler==3.11.3
     # via python-telegram-bot
@@ -10,11 +10,11 @@ attrs==26.1.0
     # via fluent-runtime
 babel==2.18.0
     # via fluent-runtime
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
-dnspython==2.9.0
+dnspython==2.9.1
     # via pymongo
 fluent-runtime==0.4.0
     # via photobot (setup.py)
@@ -38,13 +38,13 @@ numpy==2.5.4
     # via photobot (setup.py)
 pillow==13.0.0
     # via photobot (setup.py)
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   photobot (setup.py)
     #   pydantic-settings
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via pydantic
-pydantic-settings==2.16.1
+pydantic-settings==2.16.2
     # via photobot (setup.py)
 pymongo==4.19.0
     # via motor
@@ -52,7 +52,7 @@ python-dotenv==1.2.4
     # via pydantic-settings
 python-telegram-bot==22.8
     # via photobot (setup.py)
-pytz==2026.5
+pytz==2026.6
     # via fluent-runtime
 pyyaml==6.0.3
     # via photobot (setup.py)
