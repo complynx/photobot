@@ -123,25 +123,35 @@ window.addEventListener('resize', ()=>{activeTouches=[]; recalcLayout();});
 Telegram.WebApp.onEvent('viewportChanged', e=>{ if(e.isStateStable){activeTouches=[]; recalcLayout();} });
 photoEl.addEventListener('load', ()=>{initPhoto(); requestDraw();});
 
-function exportData(){
-    // Render transformed photo at full resolution (real_frame_size) and upload as binary PNG.
-    const exportTransform=transformationMatrix.map(row=>row.slice());
-    const exportCanvas=document.createElement('canvas');
-    exportCanvas.width=real_frame_size; exportCanvas.height=real_frame_size;
-    const ect=exportCanvas.getContext('2d');
-    (function render(){
-        const size=exportCanvas.width; ect.clearRect(0,0,size,size); ect.save(); ect.translate(size/2,size/2); const S=size/real_frame_size; ect.scale(S,S); const d=decompose(exportTransform); ect.translate(d.translation.x+alignment.x,d.translation.y+alignment.y); ect.scale(d.scaling.x,d.scaling.y); ect.rotate(d.rotation); ect.drawImage(photoEl,-pw/2,-ph/2,pw,ph); ect.restore(); })();
+let uploadInProgress = false;
+async function exportData(){
+    if (uploadInProgress) return;
+    uploadInProgress = true;
+    Telegram.WebApp.MainButton.showProgress();
+    try {
+        // Render transformed photo at full resolution (real_frame_size) and upload as binary PNG.
+        const exportTransform=transformationMatrix.map(row=>row.slice());
+        const exportCanvas=document.createElement('canvas');
+        exportCanvas.width=real_frame_size; exportCanvas.height=real_frame_size;
+        const ect=exportCanvas.getContext('2d');
+        (function render(){
+            const size=exportCanvas.width; ect.clearRect(0,0,size,size); ect.save(); ect.translate(size/2,size/2); const S=size/real_frame_size; ect.scale(S,S); const d=decompose(exportTransform); ect.translate(d.translation.x+alignment.x,d.translation.y+alignment.y); ect.scale(d.scaling.x,d.scaling.y); ect.rotate(d.rotation); ect.drawImage(photoEl,-pw/2,-ph/2,pw,ph); ect.restore(); })();
 
-    const endpoint = new URL('fit_frame', window.location.href); // keeps any subpath prefix
-    endpoint.search = `?id=${encodeURIComponent(photo_id)}`;
-
-    exportCanvas.toBlob(blob=>{
-        if(!blob){ alert('Export failed'); return; }
-        fetch(endpoint.toString(), {method:'POST', headers:{'Content-Type':'image/png','X-Telegram-Init-Data':Telegram.WebApp.initData,'X-Photo-Transform':JSON.stringify(exportTransform)}, body:blob})
-            .then(r=>{ if(!r.ok) throw new Error('upload failed'); return r.json(); })
-            .then(()=>{ Telegram.WebApp.close(); })
-            .catch(err=>{ console.error('Upload failed', err); alert('Upload failed, please check network and try again.'); });
-    }, 'image/png');
+        const endpoint = new URL('fit_frame', window.location.href); // keeps any subpath prefix
+        endpoint.search = `?id=${encodeURIComponent(photo_id)}`;
+        const blob = await new Promise(resolve => exportCanvas.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('export failed');
+        const response = await fetch(endpoint.toString(), {method:'POST', headers:{'Content-Type':'image/png','X-Telegram-Init-Data':Telegram.WebApp.initData,'X-Photo-Transform':JSON.stringify(exportTransform)}, body:blob});
+        if (!response.ok) throw new Error('upload failed');
+        await response.json();
+        Telegram.WebApp.close();
+    } catch (err) {
+        console.error('Upload failed', err);
+        alert('Upload failed, please check network and try again.');
+    } finally {
+        uploadInProgress = false;
+        Telegram.WebApp.MainButton.hideProgress();
+    }
 }
 Telegram.WebApp.MainButton.setText(finish_button_text);
 Telegram.WebApp.MainButton.show();
