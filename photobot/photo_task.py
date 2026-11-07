@@ -130,6 +130,9 @@ class PhotoTask(object):
         self.final_file = None
         self.tg_update = None
         self.tg_context = None
+        self.result_message_id = None
+        self.editor_transform = None
+        self.edit_lock = asyncio.Lock()
         
         tasks_by_uuid[self.id] = self
         tasks_by_chat[self.chat.id] = self
@@ -245,6 +248,14 @@ class PhotoTask(object):
         os.rename(file_name, new_name)
         self.file = new_name
     
+    async def discard(self) -> bool:
+        """Wait for an in-flight edit before removing this task's files."""
+        async with self.edit_lock:
+            if tasks_by_uuid.get(self.id) is not self:
+                return False
+            self.delete()
+            return True
+
     def delete(self) -> None:
         del tasks_by_chat[self.chat.id]
         del tasks_by_user[self.user.id]

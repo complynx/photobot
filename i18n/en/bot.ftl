@@ -1,9 +1,9 @@
 create-userpic = Create userpic
 start-message =
-    Hello. I'm a simple bot that will help you to create a user image with frame. To do it, just send me your picture.
+    Hello! I'll help you make an avatar for the next event. Please send me your photo.
 cancel-command = Cancel
 autocrop-command = Automatic
-select-position-command = Select position
+select-position-command = Adjust position
 select-position-prompt = Photo received. Now select how it will be placed in the frame.
 processing-photo = Photo is processing... (it may take some time)
 cover-caption-message =

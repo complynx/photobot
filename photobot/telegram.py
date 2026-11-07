@@ -4,7 +4,7 @@ import re
 import os
 import mimetypes
 import tempfile
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton, WebAppInfo
+from telegram import Update, ReplyKeyboardRemove, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaDocument
 from telegram.ext import (
     CallbackContext,
     ApplicationBuilder,
@@ -15,7 +15,7 @@ from telegram.ext import (
     Application,
 )
 import logging
-from .photo_task import get_by_user, PhotoTask
+from .photo_task import get_by_user, get_by_chat, PhotoTask
 from .config import Config
 import datetime
 
@@ -99,7 +99,10 @@ async def avatar_received_document_image(update: Update, context: CallbackContex
 
 async def avatar_received_stage2(update: Update, context: CallbackContext, file_path:str, file_ext:str):
     await avatar_cancel_inner(update, context)
-    loc = _localize(update, context)
+    try:
+        await get_by_chat(update.effective_chat.id).discard()
+    except KeyError:
+        pass
 
     if context.application.base_app.users_collection is not None:
         try:
@@ -129,26 +132,27 @@ async def avatar_received_stage2(update: Update, context: CallbackContext, file_
 
     task = PhotoTask(update.effective_chat, update.effective_user)
     task.add_file(file_path, file_ext)
-    buttons = [
-        [
-            KeyboardButton(
-                loc("select-position-command"),
-                web_app=WebAppInfo(full_link(context.application, f"/fit_frame?id={task.id.hex}&locale={update.effective_user.language_code}"))
-            )
-        ],
-    [loc("autocrop-command")],[loc("cancel-command")]
-    ]
+    return await avatar_crop_auto(update, context)
 
-    markup = ReplyKeyboardMarkup(
-        buttons,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-    await update.message.reply_text(
-    loc("select-position-prompt"),
-        reply_markup=markup
-    )
-    return CROPPER
+async def send_avatar_result(task: PhotoTask, application: "TGApplication"):
+    """Send the first result, then replace it when its owner adjusts the crop."""
+    locale = task.user.language_code or "en"
+    loc = lambda key: application.base_app.localization(key, locale=locale)
+    markup = InlineKeyboardMarkup([[InlineKeyboardButton(
+        loc("select-position-command"),
+        web_app=WebAppInfo(full_link(application, f"/fit_frame?id={task.id.hex}&locale={locale}")),
+    )]])
+    with open(task.get_final_file(), "rb") as image:
+        if task.result_message_id is None:
+            message = await application.bot.send_document(
+                chat_id=task.chat.id, document=image, filename="avatar.jpg", reply_markup=markup,
+            )
+            task.result_message_id = message.message_id
+        else:
+            await application.bot.edit_message_media(
+                chat_id=task.chat.id, message_id=task.result_message_id,
+                media=InputMediaDocument(image, filename="avatar.jpg"), reply_markup=markup,
+            )
 
 async def avatar_crop_auto(update: Update, context: CallbackContext):
     loc = _localize(update, context)
@@ -162,7 +166,10 @@ async def avatar_crop_auto(update: Update, context: CallbackContext):
     await update.message.reply_text(loc("processing-photo"), reply_markup=ReplyKeyboardRemove())
     
     try:
-        await task.resize_avatar()
+        async with task.edit_lock:
+            if get_by_user(update.effective_user.id) is not task:
+                return ConversationHandler.END
+            await task.resize_avatar()
     except Exception as e:
         logger.error("Exception in autocrop: %s", e, exc_info=1)
         return await avatar_error(update, context)
@@ -196,8 +203,11 @@ async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackC
     conf: Config = context.application.config
     loc = _localize(update, context)
     try:
-        await task.finalize_avatar()
-        await update.message.reply_document(task.get_final_file(), filename="avatar.jpg")
+        async with task.edit_lock:
+            if get_by_user(update.effective_user.id) is not task:
+                return ConversationHandler.END
+            await task.finalize_avatar()
+            await send_avatar_result(task, context.application)
         if conf.photo.cover_path is not None and os.path.isfile(conf.photo.cover_path):
             _, fname = os.path.split(conf.photo.cover_path)
             await update.message.reply_document(
@@ -223,13 +233,22 @@ async def avatar_crop_stage2(task: PhotoTask, update: Update, context: CallbackC
         logger.error("Exception in cropped_st2: %s", e, exc_info=1)
         return await avatar_error(update, context)
     
-    task.delete()
-    return ConversationHandler.END
+    return CROPPER
 
 async def avatar_cancel_inner(update: Update, context: CallbackContext):
     try:
-        get_by_user(update.effective_user.id).delete()
-        if context.application.base_app.users_collection is not None:
+        task = get_by_user(update.effective_user.id)
+        unfinished = task.result_message_id is None
+        if not await task.discard():
+            return False
+        if task.result_message_id is not None:
+            try:
+                await context.bot.edit_message_reply_markup(
+                    chat_id=task.chat.id, message_id=task.result_message_id, reply_markup=None,
+                )
+            except Exception:
+                logger.warning("Could not remove expired avatar editor button", exc_info=True)
+        if unfinished and context.application.base_app.users_collection is not None:
             try:
                 await context.application.base_app.users_collection.update_one({
                     "user_id": update.effective_user.id,
@@ -304,6 +323,12 @@ async def avatar_error(update: Update, context: CallbackContext):
 
 async def avatar_timeout(update: Update, context: CallbackContext):
     loc = _localize(update, context)
+    try:
+        if get_by_user(update.effective_user.id).result_message_id is not None:
+            await avatar_cancel_inner(update, context)
+            return ConversationHandler.END
+    except KeyError:
+        pass
     await avatar_cancel_inner(update, context)
     await update.message.reply_text(
     loc("conversation-timeout"),
@@ -370,7 +395,8 @@ async def create_telegram_bot(config: Config, app):
             CommandHandler("cancel", avatar_cancel_command),
             MessageHandler(filters.TEXT, avatar_fallback)
         ],
-        conversation_timeout=config.photo.conversation_timeout
+        conversation_timeout=config.photo.conversation_timeout,
+        allow_reentry=True,
     )
 
     application.add_handler(CommandHandler("start", start))
