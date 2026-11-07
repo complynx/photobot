@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../static/fit_frame.mjs'), 'utf8');
 
-function editor(initialTransform) {
+function editor(initialTransform, fetchResult = () => Promise.resolve({ok: true, json: async () => ({})})) {
   const noop = () => {};
   const frames = [];
   const encodings = [], uploads = [];
@@ -19,16 +19,19 @@ function editor(initialTransform) {
   };
   const elements = {'.help': {}, '.photo': {clientWidth: 390, clientHeight: 700},
     '.photo img': photo, '.frame_source': {complete: true}, '.overlay': {}};
-  const button = {setText: noop, show: noop, onClick: noop};
+  const button = {setText: noop, show: noop, onClick: noop, isActive: true, isProgressVisible: false,
+    showProgress() {this.isProgressVisible = true; this.isActive = false;},
+    hideProgress() {this.isProgressVisible = false; this.isActive = true;}};
+  let closes = 0;
   const sandbox = {console, document: {querySelector: s => elements[s] || null, createElement: canvas,
     body: {appendChild: noop, addEventListener: noop}, addEventListener: noop},
     window: {devicePixelRatio: 3, addEventListener: noop, initial_transform: initialTransform,
       location: {href: 'https://test.invalid/photobot/fit_frame?id=demo'}},
     URL, photo_id: 'demo', alert: noop,
-    fetch: (url, options) => {uploads.push(options); return Promise.resolve({ok: true, json: async () => ({})});},
+    fetch: (url, options) => {uploads.push(options); return fetchResult();},
     requestAnimationFrame: f => {frames.push(f); return frames.length;},
     Telegram: {WebApp: {ready: noop, expand: noop, isVersionAtLeast: () => true,
-      disableVerticalSwipes: noop, onEvent: noop, close: noop, initData: 'test', platform: 'ios', MainButton: button, BackButton: button}},
+      disableVerticalSwipes: noop, onEvent: noop, close: () => {closes++;}, initData: 'test', platform: 'ios', MainButton: button, BackButton: button}},
     real_frame_size: 1080, help_mobile: '', finish_button_text: ''};
   vm.createContext(sandbox); vm.runInContext(source, sandbox);
   const flush = () => {while (frames.length) frames.shift()();};
@@ -41,7 +44,8 @@ function editor(initialTransform) {
     state: () => JSON.parse(vm.runInContext('JSON.stringify(decompose(transformationMatrix))', sandbox)),
     run: expression => vm.runInContext(expression, sandbox), flush,
     draws: () => draws, pendingFrames: () => frames.length,
-    encode: () => encodings.shift()({}), uploads,
+    encode: (blob = {}) => encodings.shift()(blob), uploads, button,
+    pendingEncodings: () => encodings.length, closes: () => closes,
   };
 }
 function near(actual, expected) {assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);}
@@ -109,13 +113,14 @@ test('Retina preview is bounded without changing export resolution', () => {
   assert.equal(e.run('real_frame_size'), 1080);
 });
 
-test('export metadata uses the rendered snapshot even if fingers keep moving', () => {
+test('export metadata uses the rendered snapshot even if fingers keep moving', async () => {
   const e = editor();
   const snapshot = e.run('JSON.stringify(transformationMatrix)');
-  e.run('exportData()');
+  const saving = e.run('exportData()');
   e.event('onTouchStart', [[1, 100, 200]]);
   e.event('onTouchMove', [[1, 200, 300]]);
   e.encode();
+  await saving;
   assert.equal(e.uploads[0].headers['X-Photo-Transform'], snapshot);
 });
 
@@ -123,3 +128,43 @@ test('reopening an editor restores its saved position', () => {
   const e = editor([[1, 0, 50], [0, 1, -20]]);
   near(e.state().translation.x, 50); near(e.state().translation.y, -20);
 });
+
+
+test('saving shows progress immediately and ignores repeated clicks until the response', async () => {
+  let respond;
+  const response = new Promise(resolve => {respond = resolve;});
+  const e = editor(undefined, () => response);
+  const saving = e.run('exportData()');
+  assert.equal(e.button.isProgressVisible, true);
+  assert.equal(e.button.isActive, false);
+  await e.run('exportData()');
+  assert.equal(e.pendingEncodings(), 1);
+  e.encode();
+  await Promise.resolve();
+  assert.equal(e.uploads.length, 1);
+  assert.equal(e.button.isProgressVisible, true);
+  assert.equal(e.closes(), 0);
+  await e.run('exportData()');
+  assert.equal(e.pendingEncodings(), 0);
+  respond({ok: true, json: async () => ({})});
+  await saving;
+  assert.equal(e.closes(), 1);
+  assert.equal(e.button.isProgressVisible, false);
+});
+
+for (const failure of ['encoding', 'network', 'http']) {
+  test(`${failure} failure clears progress and allows retry`, async () => {
+    const e = editor(undefined, () => failure === 'network'
+      ? Promise.reject(new Error('offline')) : Promise.resolve({ok: false}));
+    const saving = e.run('exportData()');
+    e.encode(failure === 'encoding' ? null : {});
+    await saving;
+    assert.equal(e.button.isProgressVisible, false);
+    assert.equal(e.button.isActive, true);
+    assert.equal(e.closes(), 0);
+    const retry = e.run('exportData()');
+    assert.equal(e.pendingEncodings(), 1);
+    e.encode(null);
+    await retry;
+  });
+}
