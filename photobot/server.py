@@ -8,8 +8,33 @@ from .photo_task import get_by_uuid, real_frame_size
 import base64
 import json
 import logging
+import hashlib
+import hmac
+import time
+import math
+from urllib.parse import parse_qsl
+from .telegram import send_avatar_result
 
 logger = logging.getLogger(__name__)
+
+def verify_editor_owner(init_data: str, bot_token: str, user_id: int):
+    """Authenticate the inline Mini App before updating a user's Telegram message."""
+    try:
+        pairs = parse_qsl(init_data, keep_blank_values=True, strict_parsing=True)
+        data = dict(pairs)
+        if len(data) != len(pairs):
+            raise ValueError("Duplicate fields")
+        signature = data.pop("hash")
+        secret = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+        check = "\n".join(f"{key}={value}" for key, value in sorted(data.items()))
+        expected = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
+        age = time.time() - int(data["auth_date"])
+        if not hmac.compare_digest(signature, expected) or not -60 <= age <= 86400:
+            raise ValueError("Invalid or expired signature")
+        if json.loads(data["user"])["id"] != user_id:
+            raise ValueError("Wrong owner")
+    except (KeyError, ValueError, TypeError):
+        raise tornado.web.HTTPError(403)
 
 class FitFrameHandler(tornado.web.RequestHandler):
     def initialize(self, app):
@@ -48,6 +73,7 @@ class FitFrameHandler(tornado.web.RequestHandler):
                 frame_mover_help_unified=localize("frame-mover-help-unified"),
                 finish_button_text=localize("frame-mover-finish-button-text"),
                 help_realign=localize("frame-realign-message"),
+                editor_transform=task.editor_transform,
             )
         except (KeyError, ValueError):
             raise tornado.web.HTTPError(404)
@@ -100,8 +126,35 @@ class FitFrameHandler(tornado.web.RequestHandler):
         else:
             binary = image_data
 
+        verify_editor_owner(
+            self.request.headers.get("X-Telegram-Init-Data", ""),
+            self.app.bot.config.telegram.token.get_secret_value(), task.user.id,
+        )
+        transform = None
+        if self.request.headers.get("X-Photo-Transform"):
+            try:
+                transform = json.loads(self.request.headers["X-Photo-Transform"])
+                if not (isinstance(transform, list) and len(transform) == 2
+                        and all(isinstance(row, list) and len(row) == 3 for row in transform)
+                        and all(type(v) in (int, float) and math.isfinite(v) for row in transform for v in row)):
+                    raise ValueError("Invalid transform")
+            except (ValueError, TypeError):
+                raise tornado.web.HTTPError(400)
         try:
-            task.set_cropped_file_from_upload(binary)
+            async with task.edit_lock:
+                # A new photo or timeout may have invalidated this editor while it waited.
+                if get_by_uuid(task.id) is not task:
+                    raise tornado.web.HTTPError(404)
+                task.set_cropped_file_from_upload(binary)
+                await task.finalize_avatar()
+                if get_by_uuid(task.id) is not task:
+                    raise tornado.web.HTTPError(404)
+                await send_avatar_result(task, self.app.bot)
+                task.editor_transform = transform
+        except tornado.web.HTTPError:
+            raise
+        except KeyError:
+            raise tornado.web.HTTPError(404)
         except Exception as e:
             logger.error("error writing uploaded cropped image: %s", e, exc_info=1)
             raise tornado.web.HTTPError(500)

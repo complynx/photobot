@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
             <script>
                 // Placeholder; real values assigned via body data-* attributes below.
             </script>
@@ -13,7 +15,8 @@
                     data-help-desktop='{% raw json_encode(help_desktop) %}'
                     data-help-mobile='{% raw json_encode(help_mobile) %}'
                     data-finish-button-text='{% raw json_encode(finish_button_text) %}'
-                    data-debug-code="{{task.debug_code}}">
+                    data-debug-code="{{task.debug_code}}"
+                    data-editor-transform='{% raw json_encode(editor_transform) %}'>
             <script>
                 (function(){
                     const ds=document.body.dataset;
@@ -23,6 +26,7 @@
                     try{window.help_mobile=JSON.parse(ds.helpMobile);}catch{window.help_mobile=ds.helpMobile||'';}
                     try{window.finish_button_text=JSON.parse(ds.finishButtonText);}catch{window.finish_button_text=ds.finishButtonText||'';}
                     window.debug_code=ds.debugCode||'';
+                    window.initial_transform=JSON.parse(ds.editorTransform||'null');
                 })();
             </script>
         <img src="static/frame.png" alt="" class="frame_source" />
