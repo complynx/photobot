@@ -6,9 +6,9 @@
             <script>
                 // Placeholder; real values assigned via body data-* attributes below.
             </script>
-        <link rel="stylesheet" type="text/css" href="./static/fit_frame.css" />
+        <link rel="stylesheet" type="text/css" href=".{{ static_url('fit_frame.css', include_host=False) }}" />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
-        <script type="module" src="./static/fit_frame.mjs"></script>
+        <script type="module" src=".{{ static_url('fit_frame.mjs', include_host=False) }}"></script>
     </head>
         <body data-photo-id="{{id}}"
                     data-real-frame-size="{{real_frame_size}}"
