@@ -189,8 +189,7 @@ async def create_server(config: Config, base_app):
     app = tornado.web.Application([
         (r"/fit_frame", FitFrameHandler, {"app": base_app}),
         (r"/photos/(.*)", PhotoHandler),
-        (r"/static/(.*)", tornado.web.StaticFileHandler, {"path": "static/"}),
-    ], template_path="templates/")
+    ], template_path="templates/", static_path="static/")
     app.listen(config.server.port)
     base_app.server = app
 

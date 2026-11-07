@@ -175,7 +175,7 @@ class TelegramChecks(unittest.IsolatedAsyncioTestCase):
 
                         sockets = bind_sockets(0, "127.0.0.1")
                         port = sockets[0].getsockname()[1]
-                        http = HTTPServer(WebApplication([(r"/fit_frame", FitFrameHandler, {"app": app})], template_path="templates/"))
+                        http = HTTPServer(WebApplication([(r"/fit_frame", FitFrameHandler, {"app": app})], template_path="templates/", static_path="static/"))
                         http.add_sockets(sockets)
                         client = AsyncHTTPClient(force_instance=True)
                         edited = io.BytesIO()
@@ -217,6 +217,8 @@ class TelegramChecks(unittest.IsolatedAsyncioTestCase):
                             page = await client.fetch(f"http://127.0.0.1:{port}/fit_frame?id={task_id}")
                             self.assertIn(b'name="viewport"', page.body)
                             self.assertIn(b'data-editor-transform=', page.body)
+                            self.assertIn(b'href="./static/fit_frame.css?v=', page.body)
+                            self.assertIn(b'src="./static/fit_frame.mjs?v=', page.body)
 
                             started, release = asyncio.Event(), asyncio.Event()
                             finalize = task.finalize_avatar
