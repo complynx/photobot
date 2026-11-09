@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: daily
+    # Keep Python major/minor upgrades explicit; patch and digest updates remain automatic.
+    ignore:
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
     groups:
       python-images:
         patterns: [python]
