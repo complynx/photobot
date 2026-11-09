@@ -1,7 +1,7 @@
 #############################
 # Builder stage
 #############################
-FROM python:3.15.1-trixie@sha256:c5075348770d14159b316d99a4f65f3771d227710877021833119b014cd1a803 AS builder
+FROM python:3.15.2-trixie@sha256:2a01fe7b84cc646c76d6fe8c8c216aef39de2617ad2723ed488e7c4f495a9539 AS builder
 
 # Install uv (fast Python package installer)
 COPY --from=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff /uv /uvx /usr/local/bin/
