@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check Python image policy
+        run: |
+          node --test tests/check_python_images.cjs
+          node .github/scripts/check-python-images.cjs
       - name: Build runtime image
         run: docker build --pull -t photobot:check .
       - name: Check Dependabot merge gates
