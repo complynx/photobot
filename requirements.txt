@@ -34,7 +34,7 @@ idna==3.20
     #   httpx
 motor==3.7.1
     # via photobot (setup.py)
-numpy==2.5.4
+numpy==2.5.5
     # via photobot (setup.py)
 pillow==13.0.0
     # via photobot (setup.py)
@@ -44,9 +44,9 @@ pydantic==2.14.3
     #   pydantic-settings
 pydantic-core==2.50.4
     # via pydantic
-pydantic-settings==2.16.2
+pydantic-settings==2.16.3
     # via photobot (setup.py)
-pymongo==4.19.0
+pymongo==4.20.0
     # via motor
 python-dotenv==1.2.4
     # via pydantic-settings
@@ -56,7 +56,7 @@ pytz==2026.6
     # via fluent-runtime
 pyyaml==6.0.3
     # via photobot (setup.py)
-tornado==6.6
+tornado==6.6.1
     # via photobot (setup.py)
 typing-extensions==4.16.0
     # via
