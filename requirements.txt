@@ -10,7 +10,7 @@ attrs==26.1.0
     # via fluent-runtime
 babel==2.18.0
     # via fluent-runtime
-certifi==2026.10.23
+certifi==2026.11.20
     # via
     #   httpcore
     #   httpx
@@ -38,15 +38,15 @@ numpy==2.5.5
     # via photobot (setup.py)
 pillow==13.0.0
     # via photobot (setup.py)
-pydantic==2.14.3
+pydantic==2.14.4
     # via
     #   photobot (setup.py)
     #   pydantic-settings
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via pydantic
 pydantic-settings==2.16.3
     # via photobot (setup.py)
-pymongo==4.20.0
+pymongo==4.20.1
     # via motor
 python-dotenv==1.2.4
     # via pydantic-settings
@@ -54,7 +54,7 @@ python-telegram-bot==22.8
     # via photobot (setup.py)
 pytz==2026.6
     # via fluent-runtime
-pyyaml==6.0.3
+pyyaml==6.0.4
     # via photobot (setup.py)
 tornado==6.6.1
     # via photobot (setup.py)
